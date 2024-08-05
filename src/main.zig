@@ -17,6 +17,10 @@ const Color = Vec3;
 const Ray = ray.Ray;
 
 fn ray_color(r: *Ray) Color {
+    if (hit_sphere(Point3.init(0.0, 0.0, -1.0), 0.5, r)) {
+        return Color.init(1.0, 0.0, 0.0);
+    }
+
     const unit_direction = Vec3.unit_vector(r.direction());
     const t: f64 = 0.5 * (unit_direction.y() + 1.0);
     return Color.init(0.5, 0.7, 1.0).mul_scalar(t).add_vec(Color.init(1.0, 1.0, 1.0).mul_scalar(1.0 - t));
@@ -30,13 +34,21 @@ fn write_color(out_buf: std.io.GenericWriter(File, File.WriteError, File.write),
     try out_buf.print("{} {} {}\n", .{ ir, ig, ib });
 }
 
+fn hit_sphere(center: Point3, radius: f64, r: *Ray) bool {
+    const dray = r.*;
+    const oc = dray.origin().sub_vec(center);
+    const dir = dray.direction();
+    const a: f64 = Vec3.dot(dir, dir);
+    const b: f64 = 2.0 * Vec3.dot(oc, dir);
+    const c: f64 = Vec3.dot(oc, oc) - radius * radius;
+    const discriminant: f64 = b * b - 4.0 * a * c;
+    return discriminant >= 0.0;
+}
+
 pub fn main() !void {
     // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
     //std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
     //const stdout_file = std.io.getStdOut().writer();
     //var bw = std.io.bufferedWriter(stdout_file);
     //const stdout = bw.writer();
@@ -46,13 +58,6 @@ pub fn main() !void {
     //var stderr_buffer = std.io.bufferedWriter(std.io.getStdErr().writer());
     //const stderr = stderr_buffer.writer();
     const stderr = io.getStdErr().writer();
-
-    // const v = Vec3.init(0.5, 0.25, 0.3);
-    // const vx = v.x();
-    // try stderr.print("\nVx is {}\n", .{vx});
-
-    // const IMAGE_WIDTH = 256;
-    // const IMAGE_HEIGHT = 256;
 
     // Image
     const aspect_ratio: f64 = 16.0 / 9.0;
@@ -79,14 +84,9 @@ pub fn main() !void {
 
     for (0..image_height) |asc_j| {
         const j: usize = image_height - 1 - asc_j;
-        try stderr.print("\rScanlines remaining: {} ", .{j});
+        try stderr.print("\rProgress - {} ", .{j});
 
         for (0..image_width) |i| {
-            // const r: f64 = @as(f64, @floatFromInt(i)) / @as(f64, @floatFromInt(image_width - 1));
-            // const g: f64 = @as(f64, @floatFromInt(j)) / @as(f64, @floatFromInt(image_height - 1));
-            // const b: f64 = 0.25;
-            // const pixel_color = Color.init(r, g, b);
-
             const u: f64 = @as(f64, @floatFromInt(i)) / @as(f64, @floatFromInt(image_width - 1));
             const v: f64 = @as(f64, @floatFromInt(j)) / @as(f64, @floatFromInt(image_height - 1));
             const r = Ray.init(origin, lower_left_corner.add_vec(horizontal.mul_scalar(u)).add_vec(vertical.mul_scalar(v)).sub_vec(origin));
@@ -96,7 +96,7 @@ pub fn main() !void {
         }
     }
 
-    try stderr.print("\nDone.\n", .{});
+    try stderr.print("\rProgress - Done! \n", .{});
 
     //try bw.flush(); // Don't forget to flush!
     //try stderr_buffer.flush();
