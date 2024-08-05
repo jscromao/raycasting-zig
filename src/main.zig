@@ -34,11 +34,33 @@ pub const HitRecord = struct {
 
 pub const Hittable = struct {
     ptr: *anyopaque,
+
+    //got_hit_fn: *const fn (ctx: *anyopaque, r: *Ray, t_min: f64, t_max: f64, rec: *HitRecord) bool,
     vtable: *const VTable,
 
-    pub const VTable = struct {
-        got_hit: *const fn (ctx: *anyopaque, r: *Ray, t_min: f64, t_max: f64, rec: *HitRecord) bool,
-    };
+    pub const VTable = struct { got_hit_fn: *const fn (ctx: *anyopaque, r: *Ray, t_min: f64, t_max: f64, rec: *HitRecord) bool };
+
+    pub fn init(ptr: anytype) Hittable {
+        const T = @TypeOf(ptr);
+        const ptr_info = @typeInfo(T);
+
+        const generated = struct {
+            pub fn got_hit_fn(pointer: *anyopaque, data: []const u8) anyerror!void {
+                const self: T = @ptrCast(@alignCast(pointer));
+                return ptr_info.Pointer.child.got_hit(self, data);
+            }
+        };
+
+        return .{
+            .ptr = ptr,
+            .vtable = .{ .got_hit_fn = generated.got_hit_fn },
+            //.writeAllFn = gen.writeAll,
+        };
+    }
+
+    pub fn got_hit(self: Hittable, r: *Ray, t_min: f64, t_max: f64, rec: *HitRecord) bool {
+        return self.vtable.got_hit_fn(self.ptr, r, t_min, t_max, rec);
+    }
 };
 
 pub const Sphere = struct {
@@ -81,9 +103,10 @@ pub const Sphere = struct {
     }
 
     pub fn hittable(self: *Sphere) Hittable {
-        return Hittable{ .ptr = self, .vtable = .{
-            .got_hit = got_hit,
-        } };
+        // return Hittable{ .ptr = self, .vtable = .{
+        //     .got_hit = got_hit,
+        // } };
+        return Hittable.init(self);
     }
 };
 
