@@ -16,6 +16,69 @@ const Point3 = Vec3;
 const Color = Vec3;
 const Ray = ray.Ray;
 
+pub const HitRecord = struct {
+    p: Point3,
+    normal: Vec3,
+    t: f64,
+
+    pub fn init() HitRecord {
+        return .{ .p = Point3.init(0.0, 0.0, 0.0), .normal = Vec3.init(0.0, 0.0, 0.0), .t = 0.0 };
+    }
+};
+
+pub const Hittable = struct {
+    ptr: *anyopaque,
+    vtable: *const VTable,
+
+    pub const VTable = struct {
+        got_hit: *const fn (ctx: *anyopaque, r: *Ray, t_min: f64, t_max: f64, rec: *HitRecord) bool,
+    };
+};
+
+pub const Sphere = struct {
+    center: Point3,
+    radius: f64,
+
+    pub fn init(cen: Point3, r: f64) Sphere {
+        return Sphere{ .center = cen, .radius = r };
+    }
+
+    fn got_hit(ctx: *anyopaque, r: *Ray, t_min: f64, t_max: f64, rec: *HitRecord) bool {
+        const self: *Sphere = @ptrCast(@alignCast(ctx));
+
+        const oc = r.origin().sub_vec(self.center);
+        const a = r.direction().length_squared();
+        const half_b = Vec3.dot(oc, r.direction());
+        const c: f64 = oc.length_squared() - self.radius * self.radius;
+        const discriminant: f64 = half_b * half_b - a * c;
+        if (discriminant < 0.0) {
+            return false;
+        }
+
+        const sqrt_d: f64 = @sqrt(discriminant);
+
+        // Find the nearest root that lies in the acceptable range
+        var root: f64 = (-half_b - sqrt_d) / a;
+        if ((root <= t_min) || (root >= t_max)) {
+            root = (-half_b + sqrt_d) / a;
+            if ((root <= t_min) || (root >= t_max)) {
+                return false;
+            }
+        }
+
+        rec.t = root;
+        rec.p = r.at(rec.t);
+        rec.normal = (rec.p.sub_vec(self.center)) / self.radius;
+        return true;
+    }
+
+    pub fn hittable(self: *Sphere) Hittable {
+        return Hittable{ .ptr = self, .vtable = .{
+            .got_hit = got_hit,
+        } };
+    }
+};
+
 fn ray_color(r: *Ray) Color {
     const tnorm = hit_sphere(Point3.init(0.0, 0.0, -1.0), 0.5, r);
     if (tnorm > 0.0) {
