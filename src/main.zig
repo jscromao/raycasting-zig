@@ -2,8 +2,10 @@
 //! you are building an executable. If you are making a library, the convention
 //! is to delete this file and start with root.zig instead.
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 const vec3 = @import("modules/vec3.zig");
 const ray = @import("modules/ray.zig");
+const common = @import("modules/common.zig");
 const mem = std.mem;
 const io = std.io;
 const fs = std.fs;
@@ -23,12 +25,12 @@ pub const HitRecord = struct {
     front_face: bool,
 
     pub fn init() HitRecord {
-        return .{ .p = Point3.init(0.0, 0.0, 0.0), .normal = Vec3.init(0.0, 0.0, 0.0), .t = 0.0 };
+        return .{ .p = Point3.init(0.0, 0.0, 0.0), .normal = Vec3.init(0.0, 0.0, 0.0), .t = 0.0, .front_face = false };
     }
 
     pub fn set_face_normal(self: *HitRecord, r: *Ray, outward_normal: Vec3) void {
         self.front_face = Vec3.dot(r.direction(), outward_normal) < 0.0;
-        self.normal = if (self.front_face) outward_normal else -outward_normal;
+        self.normal = if (self.front_face) outward_normal else outward_normal.mul_scalar(-1.0);
     }
 };
 
@@ -44,16 +46,16 @@ pub const Hittable = struct {
         const T = @TypeOf(ptr);
         const ptr_info = @typeInfo(T);
 
-        const generated = struct {
-            pub fn got_hit_fn(pointer: *anyopaque, data: []const u8) anyerror!void {
+        const gen = struct {
+            pub fn got_hit_fn(pointer: *anyopaque, r: *Ray, t_min: f64, t_max: f64, rec: *HitRecord) bool {
                 const self: T = @ptrCast(@alignCast(pointer));
-                return ptr_info.Pointer.child.got_hit(self, data);
+                return ptr_info.Pointer.child.got_hit(self, r, t_min, t_max, rec);
             }
         };
 
         return .{
             .ptr = ptr,
-            .vtable = .{ .got_hit_fn = generated.got_hit_fn },
+            .vtable = &.{ .got_hit_fn = gen.got_hit_fn },
             //.writeAllFn = gen.writeAll,
         };
     }
@@ -87,9 +89,9 @@ pub const Sphere = struct {
 
         // Find the nearest root that lies in the acceptable range
         var root: f64 = (-half_b - sqrt_d) / a;
-        if ((root <= t_min) || (root >= t_max)) {
+        if ((root <= t_min) or (root >= t_max)) {
             root = (-half_b + sqrt_d) / a;
-            if ((root <= t_min) || (root >= t_max)) {
+            if ((root <= t_min) or (root >= t_max)) {
                 return false;
             }
         }
@@ -103,19 +105,77 @@ pub const Sphere = struct {
     }
 
     pub fn hittable(self: *Sphere) Hittable {
-        // return Hittable{ .ptr = self, .vtable = .{
-        //     .got_hit = got_hit,
-        // } };
-        return Hittable.init(self);
+        return Hittable.init(self); //Hittable{ .ptr = self, .vtable = .{ .got_hit = got_hit } };
     }
 };
 
-fn ray_color(r: *Ray) Color {
-    const tnorm = hit_sphere(Point3.init(0.0, 0.0, -1.0), 0.5, r);
-    if (tnorm > 0.0) {
-        const n = Vec3.unit_vector(r.*.at(tnorm).sub_vec(Vec3.init(0.0, 0.0, -1.0)));
-        //return Color.init(1.0, 0.0, 0.0);
-        return Color.init(n.x() + 1.0, n.y() + 1.0, n.z() + 1.0).mul_scalar(0.5);
+const HittableArrayList = std.ArrayList(Hittable);
+
+pub const HittableList = struct {
+    objects: HittableArrayList,
+
+    pub fn init(allocator: Allocator) HittableList {
+        return HittableList{ .objects = HittableArrayList.init(allocator) };
+    }
+
+    pub fn deinit(self: *HittableList) void {
+        self.objects.deinit();
+    }
+
+    pub fn add(self: *HittableList, object: Hittable) !void {
+        try self.objects.append(object);
+    }
+
+    pub fn hittable(self: *HittableList) Hittable {
+        return Hittable.init(self); //Hittable{ .ptr = self, .vtable = .{ .got_hit = got_hit } };
+    }
+
+    fn got_hit(ctx: *anyopaque, r: *Ray, t_min: f64, t_max: f64, rec: *HitRecord) bool {
+        const self: *HittableList = @ptrCast(@alignCast(ctx));
+
+        var temp_rec = HitRecord.init();
+        var hit_anything = false;
+        var closest_so_far = t_max;
+
+        for (self.objects.items, 0..) |*obj, i| {
+            _ = i;
+
+            //const obj: *Hittable = @ptrCast(@alignCast(&object));
+            if (obj.got_hit(r, t_min, closest_so_far, &temp_rec)) {
+                hit_anything = true;
+                closest_so_far = temp_rec.t;
+                //*rec = temp_rec.clone();
+                // rec.*.p = temp_rec.p;
+                // rec.*.normal = temp_rec.normal;
+                // rec.*.t = temp_rec.t;
+                // rec.*.front_face = temp_rec.front_face;
+                rec.* = temp_rec;
+            }
+        }
+
+        // for object in &self.objects {
+        //     if object.hit(ray, t_min, closest_so_far, &mut temp_rec) {
+        //         hit_anything = true;
+        //         closest_so_far = temp_rec.t;
+        //         *rec = temp_rec.clone();
+        //     }
+        // }
+
+        return hit_anything;
+    }
+};
+
+//fn ray_color(r: *Ray) Color {
+fn ray_color(r: *Ray, world: *HittableList) Color {
+    // const tnorm = hit_sphere(Point3.init(0.0, 0.0, -1.0), 0.5, r);
+    // if (tnorm > 0.0) {
+    //     const n = Vec3.unit_vector(r.*.at(tnorm).sub_vec(Vec3.init(0.0, 0.0, -1.0)));
+    //     return Color.init(n.x() + 1.0, n.y() + 1.0, n.z() + 1.0).mul_scalar(0.5);
+    // }
+
+    var rec = HitRecord.init();
+    if (HittableList.got_hit(world, r, 0.0, common.INFINITY, &rec)) {
+        return Color.init(1.0, 1.0, 1.0).add_vec(rec.normal).mul_scalar(0.5);
     }
 
     const unit_direction = Vec3.unit_vector(r.direction());
@@ -162,6 +222,10 @@ fn hit_sphere(center: Point3, radius: f64, r: *Ray) f64 {
 }
 
 pub fn main() !void {
+    //const our_allocator = std.heap.GeneralPurposeAllocator(.{}).allocator();
+    //var our_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    const our_allocator = std.heap.page_allocator;
+
     // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
     //std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
 
@@ -179,6 +243,17 @@ pub fn main() !void {
     const aspect_ratio: f64 = 16.0 / 9.0;
     const image_width: u32 = 400;
     const image_height: u32 = @as(u32, @intFromFloat(@as(f64, @floatFromInt(image_width)) / aspect_ratio));
+
+    var world = HittableList.init(our_allocator);
+    defer world.deinit();
+    // world.add(Box::new(Sphere::new(Point3::new(0.0, 0.0, -1.0), 0.5)));
+    // world.add(Box::new(Sphere::new(Point3::new(0.0, -100.5, -1.0), 100.0)));
+    const spheres = try our_allocator.alloc(Sphere, 2);
+    spheres[0] = Sphere.init(Point3.init(0.0, 0.0, -1.0), 0.5);
+    spheres[1] = Sphere.init(Point3.init(0.0, -100.5, -1.0), 100.0);
+
+    try world.add(spheres[0].hittable());
+    try world.add(spheres[1].hittable());
 
     // Camera - yep
     const viewport_height: f64 = 2.0;
@@ -206,7 +281,9 @@ pub fn main() !void {
             const u: f64 = @as(f64, @floatFromInt(i)) / @as(f64, @floatFromInt(image_width - 1));
             const v: f64 = @as(f64, @floatFromInt(j)) / @as(f64, @floatFromInt(image_height - 1));
             const r = Ray.init(origin, lower_left_corner.add_vec(horizontal.mul_scalar(u)).add_vec(vertical.mul_scalar(v)).sub_vec(origin));
-            const pixel_color = ray_color(@constCast(&r));
+
+            //const pixel_color = ray_color(@constCast(&r));
+            const pixel_color = ray_color(@constCast(&r), @constCast(&world));
 
             try write_color(stdout, pixel_color);
         }
@@ -219,7 +296,8 @@ pub fn main() !void {
 }
 
 test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
+    const list_type = std.ArrayList(i32);
+    var list = list_type.init(std.testing.allocator);
     defer list.deinit(); // Try commenting this out and see if zig detects the memory leak!
     try list.append(42);
     try std.testing.expectEqual(@as(i32, 42), list.pop());
