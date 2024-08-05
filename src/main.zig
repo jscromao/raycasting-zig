@@ -20,9 +20,15 @@ pub const HitRecord = struct {
     p: Point3,
     normal: Vec3,
     t: f64,
+    front_face: bool,
 
     pub fn init() HitRecord {
         return .{ .p = Point3.init(0.0, 0.0, 0.0), .normal = Vec3.init(0.0, 0.0, 0.0), .t = 0.0 };
+    }
+
+    pub fn set_face_normal(self: *HitRecord, r: *Ray, outward_normal: Vec3) void {
+        self.front_face = Vec3.dot(r.direction(), outward_normal) < 0.0;
+        self.normal = if (self.front_face) outward_normal else -outward_normal;
     }
 };
 
@@ -68,7 +74,9 @@ pub const Sphere = struct {
 
         rec.t = root;
         rec.p = r.at(rec.t);
-        rec.normal = (rec.p.sub_vec(self.center)) / self.radius;
+        //rec.normal = (rec.p.sub_vec(self.center)) / self.radius;
+        const outward_normal = rec.p.sub_vec(self.center).div_scalar(self.radius);
+        rec.set_face_normal(r, outward_normal);
         return true;
     }
 
