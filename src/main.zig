@@ -36,12 +36,25 @@ fn write_color(out_buf: std.io.GenericWriter(File, File.WriteError, File.write),
 
 fn hit_sphere(center: Point3, radius: f64, r: *Ray) bool {
     const dray = r.*;
-    const oc = dray.origin().sub_vec(center);
+    const orig_to_center = dray.origin().sub_vec(center);
+    const squared_otc_len = Vec3.dot(orig_to_center, orig_to_center);
     const dir = dray.direction();
-    const a: f64 = Vec3.dot(dir, dir);
-    const b: f64 = 2.0 * Vec3.dot(oc, dir);
-    const c: f64 = Vec3.dot(oc, oc) - radius * radius;
+    const squared_dir_len = Vec3.dot(dir, dir);
+    const how_aligned_otc_dir = Vec3.dot(orig_to_center, dir);
+
+    const a: f64 = squared_dir_len;
+    const b: f64 = 2.0 * how_aligned_otc_dir;
+    const c: f64 = squared_otc_len - radius * radius;
+
+    // t = (-b +- sqrt(discriminant)) / 2a
+    // discriminant = b^2 - 4ac
     const discriminant: f64 = b * b - 4.0 * a * c;
+
+    // does ray intersect the sphere?
+    // discriminant < 0 means 0 intersection points
+    // discriminant == 0 means 1 intersection point
+    // discriminant > 0 means 2 intersection points
+    // So discriminant >= 0 means there is some level of intersection
     return discriminant >= 0.0;
 }
 
