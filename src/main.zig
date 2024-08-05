@@ -17,8 +17,11 @@ const Color = Vec3;
 const Ray = ray.Ray;
 
 fn ray_color(r: *Ray) Color {
-    if (hit_sphere(Point3.init(0.0, 0.0, -1.0), 0.5, r)) {
-        return Color.init(1.0, 0.0, 0.0);
+    const tnorm = hit_sphere(Point3.init(0.0, 0.0, -1.0), 0.5, r);
+    if (tnorm > 0.0) {
+        const n = Vec3.unit_vector(r.*.at(tnorm).sub_vec(Vec3.init(0.0, 0.0, -1.0)));
+        //return Color.init(1.0, 0.0, 0.0);
+        return Color.init(n.x() + 1.0, n.y() + 1.0, n.z() + 1.0).mul_scalar(0.5);
     }
 
     const unit_direction = Vec3.unit_vector(r.direction());
@@ -34,7 +37,7 @@ fn write_color(out_buf: std.io.GenericWriter(File, File.WriteError, File.write),
     try out_buf.print("{} {} {}\n", .{ ir, ig, ib });
 }
 
-fn hit_sphere(center: Point3, radius: f64, r: *Ray) bool {
+fn hit_sphere(center: Point3, radius: f64, r: *Ray) f64 {
     const dray = r.*;
     const orig_to_center = dray.origin().sub_vec(center);
     const squared_otc_len = Vec3.dot(orig_to_center, orig_to_center);
@@ -55,7 +58,13 @@ fn hit_sphere(center: Point3, radius: f64, r: *Ray) bool {
     // discriminant == 0 means 1 intersection point
     // discriminant > 0 means 2 intersection points
     // So discriminant >= 0 means there is some level of intersection
-    return discriminant >= 0.0;
+    //return discriminant >= 0.0;
+
+    if (discriminant < 0.0) {
+        return -1.0;
+    } else {
+        return (-b - @sqrt(discriminant)) / (2.0 * a);
+    }
 }
 
 pub fn main() !void {
