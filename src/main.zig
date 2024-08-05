@@ -59,7 +59,7 @@ pub fn main() !void {
     const image_width: u32 = 400;
     const image_height: u32 = @as(u32, @intFromFloat(@as(f64, @floatFromInt(image_width)) / aspect_ratio));
 
-    // Camera
+    // Camera - yep
     const viewport_height: f64 = 2.0;
     const viewport_width = aspect_ratio * viewport_height;
     const focal_length: f64 = 1.0;
