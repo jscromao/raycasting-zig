@@ -149,7 +149,10 @@ pub const HittableList = struct {
                 // rec.*.normal = temp_rec.normal;
                 // rec.*.t = temp_rec.t;
                 // rec.*.front_face = temp_rec.front_face;
-                rec.* = temp_rec;
+                //const as_bytes: []u8 = std.mem.asBytes(rec);
+                //@memcpy(as_bytes, std.mem.asBytes(&temp_rec));
+                std.mem.copyForwards(u8, std.mem.asBytes(rec), std.mem.asBytes(&temp_rec));
+                //rec.* = temp_rec;
             }
         }
 
