@@ -113,3 +113,6 @@ pub const Vec3 = struct {
         return Vec3.init(self.x() / value, self.y() / value, self.z() / value);
     }
 };
+
+pub const Point3 = Vec3;
+pub const Color = Vec3;

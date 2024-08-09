@@ -6,6 +6,7 @@ const Allocator = std.mem.Allocator;
 const vec3 = @import("modules/vec3.zig");
 const ray = @import("modules/ray.zig");
 const common = @import("modules/common.zig");
+const Camera = @import("modules/camera.zig");
 const mem = std.mem;
 const io = std.io;
 const fs = std.fs;
@@ -14,100 +15,13 @@ const File = fs.File;
 // const Vec2 = packed struct { x: f32, y: f32 };
 // const VertexDataF1 = packed struct { position: Vec3, normal: Vec3, tex: Vec2 };
 const Vec3 = vec3.Vec3;
-const Point3 = Vec3;
-const Color = Vec3;
+const Point3 = vec3.Point3;
+const Color = vec3.Color;
 const Ray = ray.Ray;
 
-pub const HitRecord = struct {
-    p: Point3,
-    normal: Vec3,
-    t: f64,
-    front_face: bool,
-
-    pub fn init() HitRecord {
-        return .{ .p = Point3.init(0.0, 0.0, 0.0), .normal = Vec3.init(0.0, 0.0, 0.0), .t = 0.0, .front_face = false };
-    }
-
-    pub fn set_face_normal(self: *HitRecord, r: *Ray, outward_normal: Vec3) void {
-        self.front_face = Vec3.dot(r.direction(), outward_normal) < 0.0;
-        self.normal = if (self.front_face) outward_normal else outward_normal.mul_scalar(-1.0);
-    }
-};
-
-pub const Hittable = struct {
-    ptr: *anyopaque,
-
-    //got_hit_fn: *const fn (ctx: *anyopaque, r: *Ray, t_min: f64, t_max: f64, rec: *HitRecord) bool,
-    vtable: *const VTable,
-
-    pub const VTable = struct { got_hit_fn: *const fn (ctx: *anyopaque, r: *Ray, t_min: f64, t_max: f64, rec: *HitRecord) bool };
-
-    pub fn init(ptr: anytype) Hittable {
-        const T = @TypeOf(ptr);
-        const ptr_info = @typeInfo(T);
-
-        const gen = struct {
-            pub fn got_hit_fn(pointer: *anyopaque, r: *Ray, t_min: f64, t_max: f64, rec: *HitRecord) bool {
-                const self: T = @ptrCast(@alignCast(pointer));
-                return ptr_info.Pointer.child.got_hit(self, r, t_min, t_max, rec);
-            }
-        };
-
-        return .{
-            .ptr = ptr,
-            .vtable = &.{ .got_hit_fn = gen.got_hit_fn },
-            //.writeAllFn = gen.writeAll,
-        };
-    }
-
-    pub fn got_hit(self: Hittable, r: *Ray, t_min: f64, t_max: f64, rec: *HitRecord) bool {
-        return self.vtable.got_hit_fn(self.ptr, r, t_min, t_max, rec);
-    }
-};
-
-pub const Sphere = struct {
-    center: Point3,
-    radius: f64,
-
-    pub fn init(cen: Point3, r: f64) Sphere {
-        return Sphere{ .center = cen, .radius = r };
-    }
-
-    fn got_hit(ctx: *anyopaque, r: *Ray, t_min: f64, t_max: f64, rec: *HitRecord) bool {
-        const self: *Sphere = @ptrCast(@alignCast(ctx));
-
-        const oc = r.origin().sub_vec(self.center);
-        const a = r.direction().length_squared();
-        const half_b = Vec3.dot(oc, r.direction());
-        const c: f64 = oc.length_squared() - self.radius * self.radius;
-        const discriminant: f64 = half_b * half_b - a * c;
-        if (discriminant < 0.0) {
-            return false;
-        }
-
-        const sqrt_d: f64 = @sqrt(discriminant);
-
-        // Find the nearest root that lies in the acceptable range
-        var root: f64 = (-half_b - sqrt_d) / a;
-        if ((root <= t_min) or (root >= t_max)) {
-            root = (-half_b + sqrt_d) / a;
-            if ((root <= t_min) or (root >= t_max)) {
-                return false;
-            }
-        }
-
-        rec.t = root;
-        rec.p = r.at(rec.t);
-        //rec.normal = (rec.p.sub_vec(self.center)) / self.radius;
-        const outward_normal = rec.p.sub_vec(self.center).div_scalar(self.radius);
-        rec.set_face_normal(r, outward_normal);
-        return true;
-    }
-
-    pub fn hittable(self: *Sphere) Hittable {
-        return Hittable.init(self); //Hittable{ .ptr = self, .vtable = .{ .got_hit = got_hit } };
-    }
-};
+const HitRecord = @import("modules/HitRecord.zig");
+const Hittable = @import("modules/hittable.zig");
+const Sphere = @import("modules/sphere.zig");
 
 const HittableArrayList = std.ArrayList(Hittable);
 
@@ -157,53 +71,6 @@ pub const HittableList = struct {
         }
 
         return hit_anything;
-    }
-};
-
-pub const Camera = struct {
-    origin: Point3,
-    lower_left_corner: Point3,
-    horizontal: Vec3,
-    vertical: Vec3,
-
-    pub fn init(aspect_ratio: f64) Camera {
-        // const aspect_ratio: f64 = 16.0 / 9.0;
-        // const viewport_height: f64 = 2.0;
-        // const viewport_width: f64 = aspect_ratio * viewport_height;
-        // const focal_length: f64 = 1.0;
-
-        // const origin = Point3.init(0.0, 0.0, 0.0);
-        // const horizontal = Vec3.init(viewport_width, 0.0, 0.0);
-        // const vertical = Vec3.init(0.0, viewport_height, 0.0);
-        // //const lower_left_corner: Point3 = origin - horizontal / 2.0 - vertical / 2.0 - Vec3.init(0.0, 0.0, focal_length);
-        // const lower_left_corner: Point3 = origin.sub_vec(horizontal.div_scalar(2.0)).sub_vec(vertical.div_scalar(2.0)).sub_vec(Vec3.init(0.0, 0.0, focal_length));
-
-        const viewport_height: f64 = 2.0;
-        const viewport_width = aspect_ratio * viewport_height;
-        const focal_length: f64 = 1.0;
-
-        const origin = Point3.init(0.0, 0.0, 0.0);
-        const horizontal = Vec3.init(viewport_width, 0.0, 0.0);
-        const vertical = Vec3.init(0.0, viewport_height, 0.0);
-        const focal = Vec3.init(0.0, 0.0, focal_length);
-        const half_horizontal = horizontal.div_scalar(2.0);
-        const half_vertical = vertical.div_scalar(2.0);
-        //const lower_left_corner = origin - half_horizontal - half_vertical - focal;
-        const lower_left_corner = origin.sub_vec(half_horizontal).sub_vec(half_vertical).sub_vec(focal);
-
-        return Camera{
-            .origin = origin,
-            .lower_left_corner = lower_left_corner,
-            .horizontal = horizontal,
-            .vertical = vertical,
-        };
-    }
-
-    pub fn get_ray(self: *Camera, u: f64, v: f64) Ray {
-        return Ray.init(
-            self.origin,
-            self.lower_left_corner.add_vec(self.horizontal.mul_scalar(u)).add_vec(self.vertical.mul_scalar(v)).sub_vec(self.origin),
-        );
     }
 };
 
