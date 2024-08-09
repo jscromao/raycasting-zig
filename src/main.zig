@@ -195,16 +195,25 @@ pub const Camera = struct {
 };
 
 //fn ray_color(r: *Ray) Color {
-fn ray_color(r: *Ray, world: *HittableList) Color {
+fn ray_color(r: *Ray, world: *HittableList, depth: i32) !Color {
     // const tnorm = hit_sphere(Point3.init(0.0, 0.0, -1.0), 0.5, r);
     // if (tnorm > 0.0) {
     //     const n = Vec3.unit_vector(r.*.at(tnorm).sub_vec(Vec3.init(0.0, 0.0, -1.0)));
     //     return Color.init(n.x() + 1.0, n.y() + 1.0, n.z() + 1.0).mul_scalar(0.5);
     // }
 
+    // If we've exceeded the ray bounce limit, no more light is gathered
+    if (depth <= 0) {
+        return Color.init(0.0, 0.0, 0.0);
+    }
+
     var rec = HitRecord.init();
     if (HittableList.got_hit(world, r, 0.0, common.INFINITY, &rec)) {
-        return Color.init(1.0, 1.0, 1.0).add_vec(rec.normal).mul_scalar(0.5);
+        const direction = rec.normal.add_vec(try Vec3.init_random_in_unit_sphere());
+        const other_r = Ray.init(rec.p, direction);
+        const new_color = try ray_color(@constCast(&other_r), world, depth - 1);
+        return new_color.mul_scalar(0.5);
+        //return Color.init(1.0, 1.0, 1.0).add_vec(rec.normal).mul_scalar(0.5);
     }
 
     const unit_direction = Vec3.unit_vector(r.direction());
@@ -290,6 +299,7 @@ pub fn main() !void {
     const image_width: u32 = 400;
     const image_height: u32 = @as(u32, @intFromFloat(@as(f64, @floatFromInt(image_width)) / aspect_ratio));
     const samples_per_pixel: i32 = 100;
+    const max_depth: i32 = 50;
 
     var world = HittableList.init(our_allocator);
     defer world.deinit();
@@ -343,7 +353,7 @@ pub fn main() !void {
 
                 //const pixel_color = ray_color(@constCast(&r));
                 //const pixel_color = ray_color(@constCast(&r), @constCast(&world));
-                pixel_color = pixel_color.add_vec(ray_color(@constCast(&r), @constCast(&world)));
+                pixel_color = pixel_color.add_vec(try ray_color(@constCast(&r), @constCast(&world), max_depth));
             }
             try write_color(stdout, pixel_color, samples_per_pixel);
         }

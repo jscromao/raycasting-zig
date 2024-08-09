@@ -35,6 +35,6 @@ pub fn random_double() !f64 {
 }
 
 /// Return a random f64 in [min, max)
-pub fn random_double_range(min: f64, max: f64) f64 {
-    return min + (max - min) * random_double();
+pub fn random_double_range(min: f64, max: f64) !f64 {
+    return min + (max - min) * try random_double();
 }

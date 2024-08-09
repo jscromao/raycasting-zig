@@ -1,8 +1,36 @@
+const common = @import("common.zig");
+
 pub const Vec3 = struct {
     e: [3]f64,
 
     pub fn init(e0: f64, e1: f64, e2: f64) Vec3 {
         return .{ .e = .{ e0, e1, e2 } };
+    }
+
+    pub fn init_random() !Vec3 {
+        return Vec3.init(
+            try common.random_double(),
+            try common.random_double(),
+            try common.random_double(),
+        );
+    }
+
+    pub fn init_random_range(min: f64, max: f64) !Vec3 {
+        return Vec3.init(
+            try common.random_double_range(min, max),
+            try common.random_double_range(min, max),
+            try common.random_double_range(min, max),
+        );
+    }
+
+    pub fn init_random_in_unit_sphere() !Vec3 {
+        while (true) {
+            const p = try Vec3.init_random_range(-1.0, 1.0);
+            if (p.length_squared() >= 1.0) {
+                continue;
+            }
+            return p;
+        }
     }
 
     pub fn x(self: Vec3) f64 {
