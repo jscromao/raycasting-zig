@@ -212,10 +212,27 @@ fn ray_color(r: *Ray, world: *HittableList) Color {
     return Color.init(0.5, 0.7, 1.0).mul_scalar(t).add_vec(Color.init(1.0, 1.0, 1.0).mul_scalar(1.0 - t));
 }
 
-fn write_color(out_buf: std.io.GenericWriter(File, File.WriteError, File.write), pixel_color: Color) !void {
-    const ir = @as(i32, @intFromFloat(255.999 * pixel_color.x()));
-    const ig = @as(i32, @intFromFloat(255.999 * pixel_color.y()));
-    const ib = @as(i32, @intFromFloat(255.999 * pixel_color.z()));
+pub const OurWriterType = std.io.GenericWriter(File, File.WriteError, File.write);
+fn write_color(out_buf: OurWriterType, pixel_color: Color, samples_per_pixel: i32) !void {
+    var r = pixel_color.x();
+    var g = pixel_color.y();
+    var b = pixel_color.z();
+    //std.debug.print("Pre: {} {} {}\n", .{ r, g, b });
+
+    const scale: f64 = 1.0 / @as(f64, @floatFromInt(samples_per_pixel));
+    r *= scale;
+    g *= scale;
+    b *= scale;
+    //std.debug.print("Scaled: {} {} {}\n", .{ r, g, b });
+
+    // const ir = @as(i32, @intFromFloat(255.999 * pixel_color.x()));
+    // const ig = @as(i32, @intFromFloat(255.999 * pixel_color.y()));
+    // const ib = @as(i32, @intFromFloat(255.999 * pixel_color.z()));
+
+    const ir = @as(i32, @intFromFloat(256.0 * std.math.clamp(r, @as(f64, 0.0), @as(f64, 0.999))));
+    const ig = @as(i32, @intFromFloat(256.0 * std.math.clamp(g, @as(f64, 0.0), @as(f64, 0.999))));
+    const ib = @as(i32, @intFromFloat(256.0 * std.math.clamp(b, @as(f64, 0.0), @as(f64, 0.999))));
+    //std.debug.print("Out: {} {} {}\n", .{ ir, ig, ib });
 
     try out_buf.print("{} {} {}\n", .{ ir, ig, ib });
 }
@@ -272,6 +289,7 @@ pub fn main() !void {
     const aspect_ratio: f64 = 16.0 / 9.0;
     const image_width: u32 = 400;
     const image_height: u32 = @as(u32, @intFromFloat(@as(f64, @floatFromInt(image_width)) / aspect_ratio));
+    const samples_per_pixel: i32 = 100;
 
     var world = HittableList.init(our_allocator);
     defer world.deinit();
@@ -285,18 +303,20 @@ pub fn main() !void {
     try world.add(spheres[1].hittable());
 
     // Camera - yep
-    const viewport_height: f64 = 2.0;
-    const viewport_width = aspect_ratio * viewport_height;
-    const focal_length: f64 = 1.0;
+    // const viewport_height: f64 = 2.0;
+    // const viewport_width = aspect_ratio * viewport_height;
+    // const focal_length: f64 = 1.0;
 
-    const origin = Point3.init(0.0, 0.0, 0.0);
-    const horizontal = Vec3.init(viewport_width, 0.0, 0.0);
-    const vertical = Vec3.init(0.0, viewport_height, 0.0);
-    const focal = Vec3.init(0.0, 0.0, focal_length);
-    const half_horizontal = horizontal.div_scalar(2.0);
-    const half_vertical = vertical.div_scalar(2.0);
-    //const lower_left_corner = origin - half_horizontal - half_vertical - focal;
-    const lower_left_corner = origin.sub_vec(half_horizontal).sub_vec(half_vertical).sub_vec(focal);
+    // const origin = Point3.init(0.0, 0.0, 0.0);
+    // const horizontal = Vec3.init(viewport_width, 0.0, 0.0);
+    // const vertical = Vec3.init(0.0, viewport_height, 0.0);
+    // const focal = Vec3.init(0.0, 0.0, focal_length);
+    // const half_horizontal = horizontal.div_scalar(2.0);
+    // const half_vertical = vertical.div_scalar(2.0);
+    // //const lower_left_corner = origin - half_horizontal - half_vertical - focal;
+    // const lower_left_corner = origin.sub_vec(half_horizontal).sub_vec(half_vertical).sub_vec(focal);
+
+    var cam = Camera.init();
 
     // Render
 
@@ -307,14 +327,25 @@ pub fn main() !void {
         try stderr.print("\rProgress - {} ", .{j});
 
         for (0..image_width) |i| {
-            const u: f64 = @as(f64, @floatFromInt(i)) / @as(f64, @floatFromInt(image_width - 1));
-            const v: f64 = @as(f64, @floatFromInt(j)) / @as(f64, @floatFromInt(image_height - 1));
-            const r = Ray.init(origin, lower_left_corner.add_vec(horizontal.mul_scalar(u)).add_vec(vertical.mul_scalar(v)).sub_vec(origin));
+            // const u: f64 = @as(f64, @floatFromInt(i)) / @as(f64, @floatFromInt(image_width - 1));
+            // const v: f64 = @as(f64, @floatFromInt(j)) / @as(f64, @floatFromInt(image_height - 1));
+            // const r = Ray.init(origin, lower_left_corner.add_vec(horizontal.mul_scalar(u)).add_vec(vertical.mul_scalar(v)).sub_vec(origin));
+            // //const pixel_color = ray_color(@constCast(&r));
+            // const pixel_color = ray_color(@constCast(&r), @constCast(&world));
 
-            //const pixel_color = ray_color(@constCast(&r));
-            const pixel_color = ray_color(@constCast(&r), @constCast(&world));
+            // try write_color(stdout, pixel_color, samples_per_pixel);
 
-            try write_color(stdout, pixel_color);
+            var pixel_color = Color.init(0.0, 0.0, 0.0);
+            for (0..samples_per_pixel) |_| {
+                const u: f64 = (@as(f64, @floatFromInt(i)) + try common.random_double()) / @as(f64, @floatFromInt(image_width - 1));
+                const v: f64 = (@as(f64, @floatFromInt(j)) + try common.random_double()) / @as(f64, @floatFromInt(image_height - 1));
+                const r = cam.get_ray(u, v);
+
+                //const pixel_color = ray_color(@constCast(&r));
+                //const pixel_color = ray_color(@constCast(&r), @constCast(&world));
+                pixel_color = pixel_color.add_vec(ray_color(@constCast(&r), @constCast(&world)));
+            }
+            try write_color(stdout, pixel_color, samples_per_pixel);
         }
     }
 
