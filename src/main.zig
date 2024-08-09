@@ -22,6 +22,22 @@ const Ray = ray.Ray;
 const HitRecord = @import("modules/HitRecord.zig");
 const Hittable = @import("modules/hittable.zig");
 const Sphere = @import("modules/sphere.zig");
+const material = @import("modules/material.zig");
+const Material = material.Material;
+const MaterialSharedPointer = material.MaterialSharedPointer;
+
+// const rcsp = @import("packages/rcsp.zig");
+// const AllocatorPointer = rcsp.RcSharedPointer(Allocator, rcsp.NonAtomic);
+// const TestMe = struct {
+//     p: Point3,
+//     normal: Vec3,
+//     mat: ?AllocatorPointer,
+//     t: f64,
+//     front_face: bool,
+//     pub fn init() TestMe {
+//         return .{ .p = Point3.init(0.0, 0.0, 0.0), .normal = Vec3.init(0.0, 0.0, 0.0), .t = 0.0, .front_face = true, .mat = AllocatorPointer.init(std.heap.page_allocator, std.heap.page_allocator) };
+//     }
+// };
 
 const HittableArrayList = std.ArrayList(Hittable);
 
@@ -159,6 +175,32 @@ fn hit_sphere(center: Point3, radius: f64, r: *Ray) f64 {
     }
 }
 
+const Lambertian = struct {
+    albedo: Color,
+
+    pub fn init(alb: Color) Lambertian {
+        return .{ .albedo = alb };
+    }
+
+    pub fn material(self: *Lambertian) Material {
+        return Material.init(self); //Material{ .ptr = self, .vtable = .{ .scatter_fn = scatter } };
+    }
+
+    pub fn scatter(ctx: *anyopaque, r_in: *Ray, rec: *HitRecord, attenuation: *Color, scattered: *Ray) bool {
+        _ = r_in; // discard r_in as we don't require its use
+        const self: *Lambertian = @ptrCast(@alignCast(ctx));
+
+        const scatter_direction = rec.normal.add_vec(Vec3.random_unit_vector() catch Vec3.init(0.0, 0.0, 0.0));
+
+        //*attenuation = self.albedo;
+        //*scattered = Ray.init(rec.p, scatter_direction);
+        attenuation.* = self.albedo;
+        scattered.* = Ray.init(rec.p, scatter_direction);
+
+        return true;
+    }
+};
+
 pub fn main() !void {
     //const our_allocator = std.heap.GeneralPurposeAllocator(.{}).allocator();
     //var our_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -188,10 +230,16 @@ pub fn main() !void {
     defer world.deinit();
     // world.add(Box::new(Sphere::new(Point3::new(0.0, 0.0, -1.0), 0.5)));
     // world.add(Box::new(Sphere::new(Point3::new(0.0, -100.5, -1.0), 100.0)));
-    const spheres = try our_allocator.alloc(Sphere, 2);
-    spheres[0] = Sphere.init(Point3.init(0.0, 0.0, -1.0), 0.5);
-    spheres[1] = Sphere.init(Point3.init(0.0, -100.5, -1.0), 100.0);
 
+    const lamb = Lambertian.init(Color.init(0.0, 0.999, 0.0));
+    const lamb_mat = Lambertian.material(@constCast(&lamb));
+    const sphere_mat = try MaterialSharedPointer.init(lamb_mat, our_allocator);
+    defer _ = MaterialSharedPointer.deinit(@constCast(&sphere_mat));
+
+    const spheres = try our_allocator.alloc(Sphere, 2);
+    defer our_allocator.free(spheres);
+    spheres[0] = Sphere.init(Point3.init(0.0, 0.0, -1.0), 0.5, sphere_mat.strongClone());
+    spheres[1] = Sphere.init(Point3.init(0.0, -100.5, -1.0), 100.0, sphere_mat);
     try world.add(spheres[0].hittable());
     try world.add(spheres[1].hittable());
 
