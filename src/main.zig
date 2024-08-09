@@ -160,6 +160,40 @@ pub const HittableList = struct {
     }
 };
 
+pub const Camera = struct {
+    origin: Point3,
+    lower_left_corner: Point3,
+    horizontal: Vec3,
+    vertical: Vec3,
+
+    pub fn init() Camera {
+        const aspect_ratio: f64 = 16.0 / 9.0;
+        const viewport_height: f64 = 2.0;
+        const viewport_width: f64 = aspect_ratio * viewport_height;
+        const focal_length: f64 = 1.0;
+
+        const origin = Point3.init(0.0, 0.0, 0.0);
+        const horizontal = Vec3.init(viewport_width, 0.0, 0.0);
+        const vertical = Vec3.init(0.0, viewport_height, 0.0);
+        //const lower_left_corner: Point3 = origin - horizontal / 2.0 - vertical / 2.0 - Vec3.init(0.0, 0.0, focal_length);
+        const lower_left_corner: Point3 = origin.sub_vec(horizontal.div_scalar(2.0)).sub_vec(vertical.div_scalar(2.0)).sub_vec(Vec3.init(0.0, 0.0, focal_length));
+
+        return Camera{
+            .origin = origin,
+            .lower_left_corner = lower_left_corner,
+            .horizontal = horizontal,
+            .vertical = vertical,
+        };
+    }
+
+    pub fn get_ray(self: *Camera, u: f64, v: f64) Ray {
+        return Ray.init(
+            self.origin,
+            self.lower_left_corner.add_vec(self.horizontal.mul_scalar(u)).add_vec(self.vertical.mul_scalar(v)).sub_vec(self.origin),
+        );
+    }
+};
+
 //fn ray_color(r: *Ray) Color {
 fn ray_color(r: *Ray, world: *HittableList) Color {
     // const tnorm = hit_sphere(Point3.init(0.0, 0.0, -1.0), 0.5, r);
