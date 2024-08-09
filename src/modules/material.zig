@@ -48,3 +48,34 @@ pub const Material = struct {
 };
 
 pub const MaterialSharedPointer = rcsp.RcSharedPointer(Material, rcsp.NonAtomic);
+
+pub const Lambertian = struct {
+    albedo: Color,
+
+    pub fn init(alb: Color) Lambertian {
+        return .{ .albedo = alb };
+    }
+
+    pub fn material(self: *Lambertian) Material {
+        return Material.init(self); //Material{ .ptr = self, .vtable = .{ .scatter_fn = scatter } };
+    }
+
+    pub fn scatter(ctx: *anyopaque, r_in: *Ray, rec: *HitRecord, attenuation: *Color, scattered: *Ray) bool {
+        _ = r_in; // discard r_in as we don't require its use
+        const self: *Lambertian = @ptrCast(@alignCast(ctx));
+
+        var scatter_direction = rec.normal.add_vec(Vec3.random_unit_vector() catch Vec3.init(0.0, 0.0, 0.0));
+
+        // Catch degenerate scatter direction
+        if (scatter_direction.near_zero()) {
+            scatter_direction = rec.normal;
+        }
+
+        //*attenuation = self.albedo;
+        //*scattered = Ray.init(rec.p, scatter_direction);
+        attenuation.* = self.albedo;
+        scattered.* = Ray.init(rec.p, scatter_direction);
+
+        return true;
+    }
+};

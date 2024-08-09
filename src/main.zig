@@ -25,6 +25,7 @@ const Sphere = @import("modules/sphere.zig");
 const material = @import("modules/material.zig");
 const Material = material.Material;
 const MaterialSharedPointer = material.MaterialSharedPointer;
+const Lambertian = material.Lambertian;
 
 // const rcsp = @import("packages/rcsp.zig");
 // const AllocatorPointer = rcsp.RcSharedPointer(Allocator, rcsp.NonAtomic);
@@ -174,32 +175,6 @@ fn hit_sphere(center: Point3, radius: f64, r: *Ray) f64 {
         return (-b - @sqrt(discriminant)) / (2.0 * a);
     }
 }
-
-const Lambertian = struct {
-    albedo: Color,
-
-    pub fn init(alb: Color) Lambertian {
-        return .{ .albedo = alb };
-    }
-
-    pub fn material(self: *Lambertian) Material {
-        return Material.init(self); //Material{ .ptr = self, .vtable = .{ .scatter_fn = scatter } };
-    }
-
-    pub fn scatter(ctx: *anyopaque, r_in: *Ray, rec: *HitRecord, attenuation: *Color, scattered: *Ray) bool {
-        _ = r_in; // discard r_in as we don't require its use
-        const self: *Lambertian = @ptrCast(@alignCast(ctx));
-
-        const scatter_direction = rec.normal.add_vec(Vec3.random_unit_vector() catch Vec3.init(0.0, 0.0, 0.0));
-
-        //*attenuation = self.albedo;
-        //*scattered = Ray.init(rec.p, scatter_direction);
-        attenuation.* = self.albedo;
-        scattered.* = Ray.init(rec.p, scatter_direction);
-
-        return true;
-    }
-};
 
 pub fn main() !void {
     //const our_allocator = std.heap.GeneralPurposeAllocator(.{}).allocator();

@@ -1,3 +1,5 @@
+const math = @import("std").math;
+
 const common = @import("common.zig");
 
 pub const Vec3 = struct {
@@ -111,6 +113,20 @@ pub const Vec3 = struct {
     /// Divides self by a scalar value, returns new Vec3
     pub fn div_scalar(self: Vec3, value: f64) Vec3 {
         return Vec3.init(self.x() / value, self.y() / value, self.z() / value);
+    }
+
+    pub fn near_zero(self: *const Vec3) bool {
+        //const EPS: f64 = 1.0e-8;
+        const EPS: f64 = math.floatEps(f64);
+
+        // Return true if the vector is close to zero in all dimensions
+        //return self.e[0].abs() < EPS and self.e[1].abs() < EPS and self.e[2].abs() < EPS;
+        return @abs(self.e[0]) < EPS and @abs(self.e[1]) < EPS and @abs(self.e[2]) < EPS;
+    }
+
+    pub fn reflect(v: Vec3, n: Vec3) Vec3 {
+        //return v - 2.0 * dot(v, n) * n;
+        return v.sub_vec(n.mul_scalar(Vec3.dot(v, n)).mul_scalar(2.0));
     }
 };
 
