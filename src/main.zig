@@ -166,17 +166,30 @@ pub const Camera = struct {
     horizontal: Vec3,
     vertical: Vec3,
 
-    pub fn init() Camera {
-        const aspect_ratio: f64 = 16.0 / 9.0;
+    pub fn init(aspect_ratio: f64) Camera {
+        // const aspect_ratio: f64 = 16.0 / 9.0;
+        // const viewport_height: f64 = 2.0;
+        // const viewport_width: f64 = aspect_ratio * viewport_height;
+        // const focal_length: f64 = 1.0;
+
+        // const origin = Point3.init(0.0, 0.0, 0.0);
+        // const horizontal = Vec3.init(viewport_width, 0.0, 0.0);
+        // const vertical = Vec3.init(0.0, viewport_height, 0.0);
+        // //const lower_left_corner: Point3 = origin - horizontal / 2.0 - vertical / 2.0 - Vec3.init(0.0, 0.0, focal_length);
+        // const lower_left_corner: Point3 = origin.sub_vec(horizontal.div_scalar(2.0)).sub_vec(vertical.div_scalar(2.0)).sub_vec(Vec3.init(0.0, 0.0, focal_length));
+
         const viewport_height: f64 = 2.0;
-        const viewport_width: f64 = aspect_ratio * viewport_height;
+        const viewport_width = aspect_ratio * viewport_height;
         const focal_length: f64 = 1.0;
 
         const origin = Point3.init(0.0, 0.0, 0.0);
         const horizontal = Vec3.init(viewport_width, 0.0, 0.0);
         const vertical = Vec3.init(0.0, viewport_height, 0.0);
-        //const lower_left_corner: Point3 = origin - horizontal / 2.0 - vertical / 2.0 - Vec3.init(0.0, 0.0, focal_length);
-        const lower_left_corner: Point3 = origin.sub_vec(horizontal.div_scalar(2.0)).sub_vec(vertical.div_scalar(2.0)).sub_vec(Vec3.init(0.0, 0.0, focal_length));
+        const focal = Vec3.init(0.0, 0.0, focal_length);
+        const half_horizontal = horizontal.div_scalar(2.0);
+        const half_vertical = vertical.div_scalar(2.0);
+        //const lower_left_corner = origin - half_horizontal - half_vertical - focal;
+        const lower_left_corner = origin.sub_vec(half_horizontal).sub_vec(half_vertical).sub_vec(focal);
 
         return Camera{
             .origin = origin,
@@ -208,8 +221,8 @@ fn ray_color(r: *Ray, world: *HittableList, depth: i32) !Color {
     }
 
     var rec = HitRecord.init();
-    if (HittableList.got_hit(world, r, 0.0, common.INFINITY, &rec)) {
-        const direction = rec.normal.add_vec(try Vec3.init_random_in_unit_sphere());
+    if (HittableList.got_hit(world, r, 0.001, common.INFINITY, &rec)) {
+        const direction = rec.normal.add_vec(try Vec3.random_unit_vector());
         const other_r = Ray.init(rec.p, direction);
         const new_color = try ray_color(@constCast(&other_r), world, depth - 1);
         return new_color.mul_scalar(0.5);
@@ -229,18 +242,21 @@ fn write_color(out_buf: OurWriterType, pixel_color: Color, samples_per_pixel: i3
     //std.debug.print("Pre: {} {} {}\n", .{ r, g, b });
 
     const scale: f64 = 1.0 / @as(f64, @floatFromInt(samples_per_pixel));
-    r *= scale;
-    g *= scale;
-    b *= scale;
+    r = std.math.sqrt(r * scale);
+    g = std.math.sqrt(g * scale);
+    b = std.math.sqrt(b * scale);
+    // r = r * scale;
+    // g = g * scale;
+    // b = b * scale;
     //std.debug.print("Scaled: {} {} {}\n", .{ r, g, b });
 
     // const ir = @as(i32, @intFromFloat(255.999 * pixel_color.x()));
     // const ig = @as(i32, @intFromFloat(255.999 * pixel_color.y()));
     // const ib = @as(i32, @intFromFloat(255.999 * pixel_color.z()));
 
-    const ir = @as(i32, @intFromFloat(256.0 * std.math.clamp(r, @as(f64, 0.0), @as(f64, 0.999))));
-    const ig = @as(i32, @intFromFloat(256.0 * std.math.clamp(g, @as(f64, 0.0), @as(f64, 0.999))));
-    const ib = @as(i32, @intFromFloat(256.0 * std.math.clamp(b, @as(f64, 0.0), @as(f64, 0.999))));
+    const ir: i32 = @intFromFloat(common.clamp_double(r, 0.0, 0.99999) * 255.999);
+    const ig: i32 = @intFromFloat(common.clamp_double(g, 0.0, 0.99999) * 255.999);
+    const ib: i32 = @intFromFloat(common.clamp_double(b, 0.0, 0.99999) * 255.999);
     //std.debug.print("Out: {} {} {}\n", .{ ir, ig, ib });
 
     try out_buf.print("{} {} {}\n", .{ ir, ig, ib });
@@ -326,7 +342,7 @@ pub fn main() !void {
     // //const lower_left_corner = origin - half_horizontal - half_vertical - focal;
     // const lower_left_corner = origin.sub_vec(half_horizontal).sub_vec(half_vertical).sub_vec(focal);
 
-    var cam = Camera.init();
+    var cam = Camera.init(aspect_ratio);
 
     // Render
 

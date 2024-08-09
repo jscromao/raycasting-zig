@@ -30,11 +30,21 @@ pub fn random_double() !f64 {
 
     //var rnd = std.Random.DefaultPrng.init(0);
     const num = rng.random().float(f64);
-    //std.debug.print("Random double: {}\n", .{num});
+    //std.debug.print("Random double: {d}\n", .{num});
     return num;
 }
 
 /// Return a random f64 in [min, max)
 pub fn random_double_range(min: f64, max: f64) !f64 {
     return min + (max - min) * try random_double();
+}
+
+pub fn clamp_double(value: f64, min: f64, max: f64) f64 {
+    if (value < min) {
+        return min;
+    }
+    if (value > max) {
+        return max;
+    }
+    return value;
 }

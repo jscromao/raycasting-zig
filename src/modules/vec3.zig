@@ -33,6 +33,10 @@ pub const Vec3 = struct {
         }
     }
 
+    pub fn random_unit_vector() !Vec3 {
+        return Vec3.unit_vector(try Vec3.init_random_in_unit_sphere());
+    }
+
     pub fn x(self: Vec3) f64 {
         return self.e[0];
     }
