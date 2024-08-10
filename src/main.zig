@@ -204,12 +204,14 @@ pub fn main() !void {
 
     // Image
     const aspect_ratio: f64 = 16.0 / 9.0;
-    const image_width: u32 = 400;
+    const image_width: u32 = 1280;
     const image_height: u32 = @as(u32, @intFromFloat(@as(f64, @floatFromInt(image_width)) / aspect_ratio));
     const samples_per_pixel: i32 = 100;
     const max_depth: i32 = 50;
 
     // World
+    //const rot: f64 = @cos(std.math.pi / 4.0);
+
     var world = HittableList.init(our_allocator);
     defer world.deinit();
     // world.add(Box::new(Sphere::new(Point3::new(0.0, 0.0, -1.0), 0.5)));
@@ -232,7 +234,7 @@ pub fn main() !void {
     spheres[0] = Sphere.init(Point3.init(0.0, -100.5, -1.0), 100.0, mat_ground);
     spheres[1] = Sphere.init(Point3.init(0.0, 0.0, -1.0), 0.5, mat_center);
     spheres[2] = Sphere.init(Point3.init(-1.0, 0.0, -1.0), 0.5, mat_left.strongClone());
-    spheres[3] = Sphere.init(Point3.init(-1.0, 0.0, -1.0), -0.4, mat_left);
+    spheres[3] = Sphere.init(Point3.init(-1.0, 0.0, -1.0), -0.45, mat_left);
     spheres[4] = Sphere.init(Point3.init(1.0, 0.0, -1.0), 0.5, mat_right);
     try world.add(spheres[0].hittable());
     try world.add(spheres[1].hittable());
@@ -253,7 +255,10 @@ pub fn main() !void {
     // try world.add(spheres[1].hittable());
 
     // Camera
-    var cam = Camera.init(aspect_ratio);
+    //var cam = Camera.init(aspect_ratio, 90.0);
+    const vfov_degrees: f64 = 90.0;
+    const zoom_factor: f64 = 4.0;
+    var cam = Camera.init(Point3.init(-2.0, 2.0, 1.0), Point3.init(0.0, 0.0, -1.0), Vec3.init(0.0, 1.0, 0.0), vfov_degrees * (1.0 / zoom_factor), aspect_ratio);
 
     // Render
 
