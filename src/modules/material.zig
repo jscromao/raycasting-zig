@@ -79,3 +79,26 @@ pub const Lambertian = struct {
         return true;
     }
 };
+
+pub const Metal = struct {
+    albedo: Color,
+
+    pub fn init(alb: Color) Metal {
+        return .{ .albedo = alb };
+    }
+
+    pub fn material(self: *Metal) Material {
+        return Material.init(self); //Material{ .ptr = self, .vtable = .{ .scatter_fn = scatter } };
+    }
+
+    pub fn scatter(ctx: *anyopaque, r_in: *Ray, rec: *HitRecord, attenuation: *Color, scattered: *Ray) bool {
+        const self: *Metal = @ptrCast(@alignCast(ctx));
+
+        const reflected = Vec3.reflect(Vec3.unit_vector(r_in.direction()), rec.normal);
+
+        attenuation.* = self.albedo;
+        scattered.* = Ray.init(rec.p, reflected);
+
+        return Vec3.dot(scattered.direction(), rec.normal) > 0.0;
+    }
+};
