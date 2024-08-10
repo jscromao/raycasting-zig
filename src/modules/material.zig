@@ -1,4 +1,6 @@
 const rcsp = @import("../packages/rcsp.zig");
+const math = @import("std").math;
+const common = @import("common.zig");
 
 const vec3 = @import("vec3.zig");
 const Vec3 = vec3.Vec3;
@@ -46,6 +48,13 @@ pub const Material = struct {
         return self.vtable.scatter_fn(self.ptr, r_in, rec, attenuation, scattered);
     }
 };
+
+pub fn material_reflectance(cosine: f64, ref_idx: f64) f64 {
+    // Use Schlick's approximation for reflectance
+    var r0: f64 = (1.0 - ref_idx) / (1.0 + ref_idx);
+    r0 = r0 * r0;
+    return r0 + (1.0 - r0) * math.pow(f64, 1.0 - cosine, 5.0);
+}
 
 pub const MaterialSharedPointer = rcsp.RcSharedPointer(Material, rcsp.NonAtomic);
 
@@ -103,5 +112,35 @@ pub const Metal = struct {
         scattered.* = Ray.init(rec.p, reflected.add_vec(fuzzed_rando));
 
         return Vec3.dot(scattered.direction(), rec.normal) > 0.0;
+    }
+};
+
+pub const Dielectric = struct {
+    ir: f64,
+
+    pub fn init(index_of_refraction: f64) Dielectric {
+        return .{ .ir = index_of_refraction };
+    }
+
+    pub fn material(self: *Dielectric) Material {
+        return Material.init(self); //Material{ .ptr = self, .vtable = .{ .scatter_fn = scatter } };
+    }
+
+    pub fn scatter(ctx: *anyopaque, r_in: *Ray, rec: *HitRecord, attenuation: *Color, scattered: *Ray) bool {
+        const self: *Dielectric = @ptrCast(@alignCast(ctx));
+
+        const refraction_ratio = if (rec.front_face) @as(f64, 1.0 / self.ir) else self.ir;
+
+        const unit_direction = Vec3.unit_vector(r_in.direction());
+        const cos_theta: f64 = @min(Vec3.dot(unit_direction.mul_scalar(-1.0), rec.normal), 1.0);
+        const sin_theta: f64 = @sqrt(1.0 - (cos_theta * cos_theta));
+
+        const cannot_refract: bool = (refraction_ratio * sin_theta) > 1.0;
+        const should_reflect: bool = cannot_refract or material_reflectance(cos_theta, refraction_ratio) > (common.random_double() catch 0.499);
+        const direction = if (should_reflect) Vec3.reflect(unit_direction, rec.normal) else Vec3.refract(unit_direction, rec.normal, refraction_ratio);
+
+        attenuation.* = Color.init(1.0, 1.0, 1.0);
+        scattered.* = Ray.init(rec.p, direction);
+        return true;
     }
 };

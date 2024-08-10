@@ -128,6 +128,14 @@ pub const Vec3 = struct {
         //return v - 2.0 * dot(v, n) * n;
         return v.sub_vec(n.mul_scalar(Vec3.dot(v, n)).mul_scalar(2.0));
     }
+
+    pub fn refract(uv: Vec3, n: Vec3, etai_over_etat: f64) Vec3 {
+        const dotted = Vec3.dot(uv.mul_scalar(-1.0), n);
+        const cos_theta: f64 = @min(dotted, 1.0);
+        const r_out_perp = uv.add_vec(n.mul_scalar(cos_theta)).mul_scalar(etai_over_etat);
+        const r_out_parallel = n.mul_scalar(-1.0 * @sqrt(@abs(1.0 - r_out_perp.length_squared())));
+        return r_out_perp.add_vec(r_out_parallel);
+    }
 };
 
 pub const Point3 = Vec3;

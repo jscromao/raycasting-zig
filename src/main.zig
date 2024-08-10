@@ -27,6 +27,7 @@ const Material = material.Material;
 const MaterialSharedPointer = material.MaterialSharedPointer;
 const Lambertian = material.Lambertian;
 const Metal = material.Metal;
+const Dielectric = material.Dielectric;
 
 // const rcsp = @import("packages/rcsp.zig");
 // const AllocatorPointer = rcsp.RcSharedPointer(Allocator, rcsp.NonAtomic);
@@ -215,9 +216,9 @@ pub fn main() !void {
     // world.add(Box::new(Sphere::new(Point3::new(0.0, -100.5, -1.0), 100.0)));
 
     var mat_ground = try MaterialSharedPointer.init(@constCast(&Lambertian.init(Color.init(0.8, 0.8, 0.0))).material(), our_allocator);
-    var mat_center = try MaterialSharedPointer.init(@constCast(&Lambertian.init(Color.init(0.7, 0.3, 0.3))).material(), our_allocator);
-    var mat_left = try MaterialSharedPointer.init(@constCast(&Metal.init(Color.init(0.8, 0.8, 0.8), 0.3)).material(), our_allocator);
-    var mat_right = try MaterialSharedPointer.init(@constCast(&Metal.init(Color.init(0.8, 0.6, 0.2), 1.0)).material(), our_allocator);
+    var mat_center = try MaterialSharedPointer.init(@constCast(&Lambertian.init(Color.init(0.1, 0.2, 0.5))).material(), our_allocator);
+    var mat_left = try MaterialSharedPointer.init(@constCast(&Dielectric.init(1.5)).material(), our_allocator);
+    var mat_right = try MaterialSharedPointer.init(@constCast(&Metal.init(Color.init(0.8, 0.6, 0.2), 0.0)).material(), our_allocator);
     defer {
         _ = mat_ground.deinit();
         _ = mat_center.deinit();
@@ -225,17 +226,19 @@ pub fn main() !void {
         _ = mat_right.deinit();
     }
 
-    const spheres = try our_allocator.alloc(Sphere, 4);
+    const spheres = try our_allocator.alloc(Sphere, 5);
     defer our_allocator.free(spheres);
     //spheres[0] = Sphere.init(Point3.init(0.0, 0.0, -1.0), 0.5, sphere_mat.strongClone());
     spheres[0] = Sphere.init(Point3.init(0.0, -100.5, -1.0), 100.0, mat_ground);
     spheres[1] = Sphere.init(Point3.init(0.0, 0.0, -1.0), 0.5, mat_center);
-    spheres[2] = Sphere.init(Point3.init(-1.0, 0.0, -1.0), 0.5, mat_left);
-    spheres[3] = Sphere.init(Point3.init(1.0, 0.0, -1.0), 0.5, mat_right);
+    spheres[2] = Sphere.init(Point3.init(-1.0, 0.0, -1.0), 0.5, mat_left.strongClone());
+    spheres[3] = Sphere.init(Point3.init(-1.0, 0.0, -1.0), -0.4, mat_left);
+    spheres[4] = Sphere.init(Point3.init(1.0, 0.0, -1.0), 0.5, mat_right);
     try world.add(spheres[0].hittable());
     try world.add(spheres[1].hittable());
     try world.add(spheres[2].hittable());
     try world.add(spheres[3].hittable());
+    try world.add(spheres[4].hittable());
 
     // const lamb = Lambertian.init(Color.init(0.0, 0.999, 0.0));
     // const lamb_mat = Lambertian.material(@constCast(&lamb));
