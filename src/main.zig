@@ -26,6 +26,7 @@ const material = @import("modules/material.zig");
 const Material = material.Material;
 const MaterialSharedPointer = material.MaterialSharedPointer;
 const Lambertian = material.Lambertian;
+const Metal = material.Metal;
 
 // const rcsp = @import("packages/rcsp.zig");
 // const AllocatorPointer = rcsp.RcSharedPointer(Allocator, rcsp.NonAtomic);
@@ -93,12 +94,6 @@ pub const HittableList = struct {
 
 //fn ray_color(r: *Ray) Color {
 fn ray_color(r: *Ray, world: *HittableList, depth: i32) !Color {
-    // const tnorm = hit_sphere(Point3.init(0.0, 0.0, -1.0), 0.5, r);
-    // if (tnorm > 0.0) {
-    //     const n = Vec3.unit_vector(r.*.at(tnorm).sub_vec(Vec3.init(0.0, 0.0, -1.0)));
-    //     return Color.init(n.x() + 1.0, n.y() + 1.0, n.z() + 1.0).mul_scalar(0.5);
-    // }
-
     // If we've exceeded the ray bounce limit, no more light is gathered
     if (depth <= 0) {
         return Color.init(0.0, 0.0, 0.0);
@@ -106,11 +101,23 @@ fn ray_color(r: *Ray, world: *HittableList, depth: i32) !Color {
 
     var rec = HitRecord.init();
     if (HittableList.got_hit(world, r, 0.001, common.INFINITY, &rec)) {
-        const direction = rec.normal.add_vec(try Vec3.random_unit_vector());
-        const other_r = Ray.init(rec.p, direction);
-        const new_color = try ray_color(@constCast(&other_r), world, depth - 1);
-        return new_color.mul_scalar(0.5);
-        //return Color.init(1.0, 1.0, 1.0).add_vec(rec.normal).mul_scalar(0.5);
+        // const direction = rec.normal.add_vec(try Vec3.random_unit_vector());
+        // const other_r = Ray.init(rec.p, direction);
+        // const new_color = try ray_color(@constCast(&other_r), world, depth - 1);
+        // return new_color.mul_scalar(0.5);
+
+        var attenuation = Color.init(0.0, 0.0, 0.0);
+        var scattered = Ray.init(Point3.init(0.0, 0.0, 0.0), Vec3.init(0.0, 0.0, 0.0));
+
+        if (rec.mat) |mat| {
+            //std.debug.print("ray color, rec has a mat sharedpointer\n", .{});
+            if (mat.unsafePtr().scatter(r, &rec, &attenuation, &scattered)) {
+                //std.debug.print("that mat shared_ptr scattered\n", .{});
+                return attenuation.mul_vec(try ray_color(&scattered, world, depth - 1));
+            }
+        }
+
+        return Color.init(0.0, 0.0, 0.0);
     }
 
     const unit_direction = Vec3.unit_vector(r.direction());
@@ -201,37 +208,48 @@ pub fn main() !void {
     const samples_per_pixel: i32 = 100;
     const max_depth: i32 = 50;
 
+    // World
     var world = HittableList.init(our_allocator);
     defer world.deinit();
     // world.add(Box::new(Sphere::new(Point3::new(0.0, 0.0, -1.0), 0.5)));
     // world.add(Box::new(Sphere::new(Point3::new(0.0, -100.5, -1.0), 100.0)));
 
-    const lamb = Lambertian.init(Color.init(0.0, 0.999, 0.0));
-    const lamb_mat = Lambertian.material(@constCast(&lamb));
-    const sphere_mat = try MaterialSharedPointer.init(lamb_mat, our_allocator);
-    defer _ = MaterialSharedPointer.deinit(@constCast(&sphere_mat));
+    var mat_ground = try MaterialSharedPointer.init(@constCast(&Lambertian.init(Color.init(0.8, 0.8, 0.0))).material(), our_allocator);
+    var mat_center = try MaterialSharedPointer.init(@constCast(&Lambertian.init(Color.init(0.7, 0.3, 0.3))).material(), our_allocator);
+    var mat_left = try MaterialSharedPointer.init(@constCast(&Metal.init(Color.init(0.8, 0.8, 0.8), 0.3)).material(), our_allocator);
+    var mat_right = try MaterialSharedPointer.init(@constCast(&Metal.init(Color.init(0.8, 0.6, 0.2), 1.0)).material(), our_allocator);
+    defer {
+        _ = mat_ground.deinit();
+        _ = mat_center.deinit();
+        _ = mat_left.deinit();
+        _ = mat_right.deinit();
+    }
 
-    const spheres = try our_allocator.alloc(Sphere, 2);
+    const spheres = try our_allocator.alloc(Sphere, 4);
     defer our_allocator.free(spheres);
-    spheres[0] = Sphere.init(Point3.init(0.0, 0.0, -1.0), 0.5, sphere_mat.strongClone());
-    spheres[1] = Sphere.init(Point3.init(0.0, -100.5, -1.0), 100.0, sphere_mat);
+    //spheres[0] = Sphere.init(Point3.init(0.0, 0.0, -1.0), 0.5, sphere_mat.strongClone());
+    spheres[0] = Sphere.init(Point3.init(0.0, -100.5, -1.0), 100.0, mat_ground);
+    spheres[1] = Sphere.init(Point3.init(0.0, 0.0, -1.0), 0.5, mat_center);
+    spheres[2] = Sphere.init(Point3.init(-1.0, 0.0, -1.0), 0.5, mat_left);
+    spheres[3] = Sphere.init(Point3.init(1.0, 0.0, -1.0), 0.5, mat_right);
     try world.add(spheres[0].hittable());
     try world.add(spheres[1].hittable());
+    try world.add(spheres[2].hittable());
+    try world.add(spheres[3].hittable());
 
-    // Camera - yep
-    // const viewport_height: f64 = 2.0;
-    // const viewport_width = aspect_ratio * viewport_height;
-    // const focal_length: f64 = 1.0;
+    // const lamb = Lambertian.init(Color.init(0.0, 0.999, 0.0));
+    // const lamb_mat = Lambertian.material(@constCast(&lamb));
+    // const sphere_mat = try MaterialSharedPointer.init(lamb_mat, our_allocator);
+    // defer _ = MaterialSharedPointer.deinit(@constCast(&sphere_mat));
 
-    // const origin = Point3.init(0.0, 0.0, 0.0);
-    // const horizontal = Vec3.init(viewport_width, 0.0, 0.0);
-    // const vertical = Vec3.init(0.0, viewport_height, 0.0);
-    // const focal = Vec3.init(0.0, 0.0, focal_length);
-    // const half_horizontal = horizontal.div_scalar(2.0);
-    // const half_vertical = vertical.div_scalar(2.0);
-    // //const lower_left_corner = origin - half_horizontal - half_vertical - focal;
-    // const lower_left_corner = origin.sub_vec(half_horizontal).sub_vec(half_vertical).sub_vec(focal);
+    // const spheres = try our_allocator.alloc(Sphere, 2);
+    // defer our_allocator.free(spheres);
+    // spheres[0] = Sphere.init(Point3.init(0.0, 0.0, -1.0), 0.5, sphere_mat.strongClone());
+    // spheres[1] = Sphere.init(Point3.init(0.0, -100.5, -1.0), 100.0, sphere_mat);
+    // try world.add(spheres[0].hittable());
+    // try world.add(spheres[1].hittable());
 
+    // Camera
     var cam = Camera.init(aspect_ratio);
 
     // Render

@@ -82,9 +82,10 @@ pub const Lambertian = struct {
 
 pub const Metal = struct {
     albedo: Color,
+    fuzz: f64,
 
-    pub fn init(alb: Color) Metal {
-        return .{ .albedo = alb };
+    pub fn init(alb: Color, f: f64) Metal {
+        return .{ .albedo = alb, .fuzz = if (f < 1.0) f else 1.0 };
     }
 
     pub fn material(self: *Metal) Material {
@@ -97,7 +98,9 @@ pub const Metal = struct {
         const reflected = Vec3.reflect(Vec3.unit_vector(r_in.direction()), rec.normal);
 
         attenuation.* = self.albedo;
-        scattered.* = Ray.init(rec.p, reflected);
+        //scattered.* = Ray.init(rec.p, reflected);
+        const fuzzed_rando = (Vec3.init_random_in_unit_sphere() catch Vec3.init(0.0, 0.0, 0.0)).mul_scalar(self.fuzz);
+        scattered.* = Ray.init(rec.p, reflected.add_vec(fuzzed_rando));
 
         return Vec3.dot(scattered.direction(), rec.normal) > 0.0;
     }
