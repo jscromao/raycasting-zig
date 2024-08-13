@@ -39,6 +39,16 @@ pub const Vec3 = struct {
         return Vec3.unit_vector(try Vec3.init_random_in_unit_sphere());
     }
 
+    pub fn random_in_unit_disk() Vec3 {
+        while (true) {
+            const p = Vec3.init(common.random_double_range(-1.0, 1.0) catch 0.0, common.random_double_range(-1.0, 1.0) catch 0.0, 0.0);
+            if (p.length_squared() >= 1.0) {
+                continue;
+            }
+            return p;
+        }
+    }
+
     pub fn x(self: Vec3) f64 {
         return self.e[0];
     }

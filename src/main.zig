@@ -204,7 +204,7 @@ pub fn main() !void {
 
     // Image
     const aspect_ratio: f64 = 16.0 / 9.0;
-    const image_width: u32 = 1280;
+    const image_width: u32 = 400;
     const image_height: u32 = @as(u32, @intFromFloat(@as(f64, @floatFromInt(image_width)) / aspect_ratio));
     const samples_per_pixel: i32 = 100;
     const max_depth: i32 = 50;
@@ -256,9 +256,17 @@ pub fn main() !void {
 
     // Camera
     //var cam = Camera.init(aspect_ratio, 90.0);
-    const vfov_degrees: f64 = 90.0;
-    const zoom_factor: f64 = 4.0;
-    var cam = Camera.init(Point3.init(-2.0, 2.0, 1.0), Point3.init(0.0, 0.0, -1.0), Vec3.init(0.0, 1.0, 0.0), vfov_degrees * (1.0 / zoom_factor), aspect_ratio);
+    const vfov_degrees: f64 = 100.0;
+    const zoom_multiplier: f64 = 5.0;
+
+    const look_from = Point3.init(-2.0, 2.0, 1.0);
+    const look_at = Point3.init(0.0, 0.0, -1.0);
+    const vup = Vec3.init(0.0, 1.0, 0.0);
+    const dist_to_focus = look_from.sub_vec(look_at).length();
+    const aperture: f64 = 2.0;
+
+    //var cam = Camera.init(Point3.init(-2.0, 2.0, 1.0), Point3.init(0.0, 0.0, -1.0), Vec3.init(0.0, 1.0, 0.0), vfov_degrees, zoom_multiplier, aspect_ratio);
+    var cam = Camera.init(look_from, look_at, vup, vfov_degrees, zoom_multiplier, aspect_ratio, aperture, dist_to_focus);
 
     // Render
 
