@@ -184,6 +184,18 @@ fn hit_sphere(center: Point3, radius: f64, r: *Ray) f64 {
     }
 }
 
+const SphereList = std.ArrayList(Sphere);
+const LambertianList = std.ArrayList(Lambertian);
+const MetalList = std.ArrayList(Metal);
+const DielectricList = std.ArrayList(Dielectric);
+//const MaterialPointerList = std.ArrayList(MaterialSharedPointer);
+const MaterialList = std.ArrayList(Material);
+
+//fn random_scene(our_allocator: Allocator) !HittableList {
+//fn random_scene(our_allocator: Allocator) !struct { world: HittableList, spheres: SphereList, lambertians: LambertianList, metals: MetalList, dielectrics: DielectricList, mats: MaterialPointerList } {
+//    return .{ .world = world, .spheres = spheres, .lambertians = lambertians, .metals = metals, .dielectrics = dielectrics, .mats = mats };
+//}
+
 pub fn main() !void {
     //const our_allocator = std.heap.GeneralPurposeAllocator(.{}).allocator();
     //var our_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -203,67 +215,144 @@ pub fn main() !void {
     const stderr = io.getStdErr().writer();
 
     // Image
-    const aspect_ratio: f64 = 16.0 / 9.0;
+    const aspect_ratio: f64 = 3.0 / 2.0;
     const image_width: u32 = 400;
     const image_height: u32 = @as(u32, @intFromFloat(@as(f64, @floatFromInt(image_width)) / aspect_ratio));
     const samples_per_pixel: i32 = 100;
     const max_depth: i32 = 50;
 
     // World
-    //const rot: f64 = @cos(std.math.pi / 4.0);
 
-    var world = HittableList.init(our_allocator);
-    defer world.deinit();
-    // world.add(Box::new(Sphere::new(Point3::new(0.0, 0.0, -1.0), 0.5)));
-    // world.add(Box::new(Sphere::new(Point3::new(0.0, -100.5, -1.0), 100.0)));
+    // var world = HittableList.init(our_allocator);
+    // defer world.deinit();
 
-    var mat_ground = try MaterialSharedPointer.init(@constCast(&Lambertian.init(Color.init(0.8, 0.8, 0.0))).material(), our_allocator);
-    var mat_center = try MaterialSharedPointer.init(@constCast(&Lambertian.init(Color.init(0.1, 0.2, 0.5))).material(), our_allocator);
-    var mat_left = try MaterialSharedPointer.init(@constCast(&Dielectric.init(1.5)).material(), our_allocator);
-    var mat_right = try MaterialSharedPointer.init(@constCast(&Metal.init(Color.init(0.8, 0.6, 0.2), 0.0)).material(), our_allocator);
-    defer {
-        _ = mat_ground.deinit();
-        _ = mat_center.deinit();
-        _ = mat_left.deinit();
-        _ = mat_right.deinit();
-    }
+    // var mat_ground = try MaterialSharedPointer.init(@constCast(&Lambertian.init(Color.init(0.8, 0.8, 0.0))).material(), our_allocator);
+    // var mat_center = try MaterialSharedPointer.init(@constCast(&Lambertian.init(Color.init(0.1, 0.2, 0.5))).material(), our_allocator);
+    // var mat_left = try MaterialSharedPointer.init(@constCast(&Dielectric.init(1.5)).material(), our_allocator);
+    // var mat_right = try MaterialSharedPointer.init(@constCast(&Metal.init(Color.init(0.8, 0.6, 0.2), 0.0)).material(), our_allocator);
+    // defer {
+    //     _ = mat_ground.deinit();
+    //     _ = mat_center.deinit();
+    //     _ = mat_left.deinit();
+    //     _ = mat_right.deinit();
+    // }
 
-    const spheres = try our_allocator.alloc(Sphere, 5);
-    defer our_allocator.free(spheres);
-    //spheres[0] = Sphere.init(Point3.init(0.0, 0.0, -1.0), 0.5, sphere_mat.strongClone());
-    spheres[0] = Sphere.init(Point3.init(0.0, -100.5, -1.0), 100.0, mat_ground);
-    spheres[1] = Sphere.init(Point3.init(0.0, 0.0, -1.0), 0.5, mat_center);
-    spheres[2] = Sphere.init(Point3.init(-1.0, 0.0, -1.0), 0.5, mat_left.strongClone());
-    spheres[3] = Sphere.init(Point3.init(-1.0, 0.0, -1.0), -0.45, mat_left);
-    spheres[4] = Sphere.init(Point3.init(1.0, 0.0, -1.0), 0.5, mat_right);
-    try world.add(spheres[0].hittable());
-    try world.add(spheres[1].hittable());
-    try world.add(spheres[2].hittable());
-    try world.add(spheres[3].hittable());
-    try world.add(spheres[4].hittable());
-
-    // const lamb = Lambertian.init(Color.init(0.0, 0.999, 0.0));
-    // const lamb_mat = Lambertian.material(@constCast(&lamb));
-    // const sphere_mat = try MaterialSharedPointer.init(lamb_mat, our_allocator);
-    // defer _ = MaterialSharedPointer.deinit(@constCast(&sphere_mat));
-
-    // const spheres = try our_allocator.alloc(Sphere, 2);
+    // const spheres = try our_allocator.alloc(Sphere, 5);
     // defer our_allocator.free(spheres);
-    // spheres[0] = Sphere.init(Point3.init(0.0, 0.0, -1.0), 0.5, sphere_mat.strongClone());
-    // spheres[1] = Sphere.init(Point3.init(0.0, -100.5, -1.0), 100.0, sphere_mat);
+    // spheres[0] = Sphere.init(Point3.init(0.0, -100.5, -1.0), 100.0, mat_ground);
+    // spheres[1] = Sphere.init(Point3.init(0.0, 0.0, -1.0), 0.5, mat_center);
+    // spheres[2] = Sphere.init(Point3.init(-1.0, 0.0, -1.0), 0.5, mat_left.strongClone());
+    // spheres[3] = Sphere.init(Point3.init(-1.0, 0.0, -1.0), -0.45, mat_left);
+    // spheres[4] = Sphere.init(Point3.init(1.0, 0.0, -1.0), 0.5, mat_right);
     // try world.add(spheres[0].hittable());
     // try world.add(spheres[1].hittable());
+    // try world.add(spheres[2].hittable());
+    // try world.add(spheres[3].hittable());
+    // try world.add(spheres[4].hittable());
+
+    //const the_stuff = try random_scene(our_allocator);
+    //const world = the_stuff.world;
+
+    var world = HittableList.init(our_allocator);
+    var spheres = SphereList.init(our_allocator);
+
+    var lambertians = LambertianList.init(our_allocator);
+    var metals = MetalList.init(our_allocator);
+    var dielectrics = DielectricList.init(our_allocator);
+
+    //var mats = MaterialPointerList.init(our_allocator);
+    var mats = MaterialList.init(our_allocator);
+
+    try lambertians.append(Lambertian.init(Color.init(0.5, 0.5, 0.5)));
+    //try mats.append(try MaterialSharedPointer.init(@constCast(&(lambertians.getLast())).material(), our_allocator));
+    try mats.append(@constCast(&(lambertians.getLast())).material());
+    try spheres.append(Sphere.init(Point3.init(0.0, -1000.0, 0.0), 1000.0, try MaterialSharedPointer.init(mats.getLast(), our_allocator)));
+    try world.add(@constCast(&spheres.getLast()).hittable());
+    std.debug.print("Ground Lambertian refs: {} vs {}\n", .{ &(lambertians.items[lambertians.items.len - 1]), &(lambertians.getLast()) });
+
+    var a: i32 = -11;
+    while (a < 11) : (a += 1) {
+        var b: i32 = -11;
+        while (b < 11) : (b += 1) {
+            const choose_mat = try common.random_double();
+            const center = Point3.init(@as(f64, @floatFromInt(a)) + 0.9 * try common.random_double(), 0.2, @as(f64, @floatFromInt(b)) + 0.9 * try common.random_double());
+
+            if (center.sub_vec(Point3.init(4.0, 0.2, 0.0)).length() > 0.9) {
+                if (choose_mat < 0.8) {
+                    // Diffuse
+                    const albedo: Color = (try Color.init_random()).mul_vec(try Color.init_random());
+                    try lambertians.append(Lambertian.init(albedo));
+                    try mats.append(@constCast(&lambertians.getLast()).material());
+                    try spheres.append(Sphere.init(center, 0.2, try MaterialSharedPointer.init(mats.getLast(), our_allocator)));
+                    try world.add(@constCast(&spheres.getLast()).hittable());
+
+                    //const albedo: Color = (try Color.init_random()).mul_vec(try Color.init_random());
+                    //const sphere_mat = try MaterialSharedPointer.init(@constCast(&Lambertian.init(albedo)).material(), our_allocator);
+                    // try spheres.append(Sphere.init(center, 0.2, &(mats.getLast())));
+                    // const the_sphere: *Sphere = &spheres.getLast();
+                    // @memcpy(std.mem.asBytes(the_sphere), std.mem.asBytes(&Sphere.init(center, 0.2, sphere_mat)));
+                    // world.add(Box::new(Sphere::new(center, 0.2, sphere_material)));
+                    // try world.add(the_sphere.hittable());
+                } else if (choose_mat < 0.95) {
+                    // Metal
+                    const albedo: Color = try Color.init_random_range(0.5, 1.0);
+                    const fuzz = try common.random_double_range(0.0, 0.5);
+                    try metals.append(Metal.init(albedo, fuzz));
+                    try mats.append(@constCast(&metals.getLast()).material());
+                    try spheres.append(Sphere.init(center, 0.2, try MaterialSharedPointer.init(mats.getLast(), our_allocator)));
+                    try world.add(@constCast(&spheres.getLast()).hittable());
+                    //const sphere_material = Rc::new(Metal::new(albedo, fuzz));
+                    // const sphere_mat = try MaterialSharedPointer.init(@constCast(&Metal.init(albedo, fuzz)).material(), our_allocator);
+                    // try mats.append(sphere_mat);
+                    // //world.add(Box::new(Sphere::new(center, 0.2, sphere_material)));
+                    // const the_sphere: *Sphere = try spheres.addOne();
+                    // @memcpy(std.mem.asBytes(the_sphere), std.mem.asBytes(&Sphere.init(center, 0.2, mats.getLast().strongClone())));
+                    // try world.add(the_sphere.hittable());
+                } else {
+                    // Glass
+                    // //const sphere_material = Rc::new(Dielectric::new(1.5));
+                    // const sphere_mat = try MaterialSharedPointer.init(@constCast(&Dielectric.init(1.5)).material(), our_allocator);
+                    // //world.add(Box::new(Sphere::new(center, 0.2, sphere_material)));
+                    // const the_sphere: *Sphere = try spheres.addOne();
+                    // @memcpy(std.mem.asBytes(the_sphere), std.mem.asBytes(&Sphere.init(center, 0.2, sphere_mat)));
+                    // try world.add(the_sphere.hittable());
+                    try dielectrics.append(Dielectric.init(1.5));
+                    try mats.append(@constCast(&dielectrics.getLast()).material());
+                    try spheres.append(Sphere.init(center, 0.2, try MaterialSharedPointer.init(mats.getLast(), our_allocator)));
+                    try world.add(@constCast(&spheres.getLast()).hittable());
+                }
+            }
+        }
+    }
+
+    try dielectrics.append(Dielectric.init(1.5));
+    //try mats.append(try MaterialSharedPointer.init(@constCast(&(dielectrics.getLast())).material(), our_allocator));
+    try mats.append(@constCast(&(dielectrics.getLast())).material());
+    try spheres.append(Sphere.init(Point3.init(0.0, 1.0, 0.0), 1.0, try MaterialSharedPointer.init(mats.getLast(), our_allocator)));
+    try world.add(@constCast(&spheres.getLast()).hittable());
+
+    try lambertians.append(Lambertian.init(Color.init(0.4, 0.2, 0.1)));
+    //try mats.append(try MaterialSharedPointer.init(@constCast(&(lambertians.getLast())).material(), our_allocator));
+    try mats.append(@constCast(&(lambertians.getLast())).material());
+    try spheres.append(Sphere.init(Point3.init(-4.0, 1.0, 0.0), 1.0, try MaterialSharedPointer.init(mats.getLast(), our_allocator)));
+    try world.add(@constCast(&spheres.getLast()).hittable());
+
+    try metals.append(Metal.init(Color.init(0.7, 0.6, 0.5), 0.0));
+    //try mats.append(try MaterialSharedPointer.init(@constCast(&(metals.getLast())).material(), our_allocator));
+    try mats.append(@constCast(&(metals.getLast())).material());
+    try spheres.append(Sphere.init(Point3.init(4.0, 1.0, 0.0), 1.0, try MaterialSharedPointer.init(mats.getLast(), our_allocator)));
+    try world.add(@constCast(&spheres.getLast()).hittable());
 
     // Camera
     //var cam = Camera.init(aspect_ratio, 90.0);
     const vfov_degrees: f64 = 100.0;
     const zoom_multiplier: f64 = 5.0;
 
-    const look_from = Point3.init(-2.0, 2.0, 1.0);
-    const look_at = Point3.init(0.0, 0.0, -1.0);
+    const look_from = Point3.init(13.0, 2.0, 3.0); //Point3.init(-2.0, 2.0, 1.0);
+    const look_at = Point3.init(0.0, 0.0, 0.0); //Point3.init(0.0, 0.0, -1.0);
     const vup = Vec3.init(0.0, 1.0, 0.0);
-    const dist_to_focus = look_from.sub_vec(look_at).length();
-    const aperture: f64 = 2.0;
+    const dist_to_focus: f64 = 10.0; //look_from.sub_vec(look_at).length();
+    const aperture: f64 = 0.1; //2.0;
 
     //var cam = Camera.init(Point3.init(-2.0, 2.0, 1.0), Point3.init(0.0, 0.0, -1.0), Vec3.init(0.0, 1.0, 0.0), vfov_degrees, zoom_multiplier, aspect_ratio);
     var cam = Camera.init(look_from, look_at, vup, vfov_degrees, zoom_multiplier, aspect_ratio, aperture, dist_to_focus);

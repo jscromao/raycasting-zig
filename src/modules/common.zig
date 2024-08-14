@@ -31,9 +31,8 @@ pub fn random_double() !f64 {
     if (rnd) |*v| {
         return v.random().floatNorm(f64);
     } else {
-        var ours = std.Random.DefaultPrng.init(@intCast(std.time.milliTimestamp()));
-        rnd = ours;
-        return ours.random().floatNorm(f64);
+        rnd = std.Random.DefaultPrng.init(@intCast(std.time.milliTimestamp()));
+        return rnd.?.random().floatNorm(f64);
     }
 }
 
