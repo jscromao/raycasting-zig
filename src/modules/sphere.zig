@@ -13,6 +13,8 @@ const MaterialSharedPointer = material.MaterialSharedPointer;
 
 const Sphere = @This();
 //pub const Sphere = struct {
+
+//center: Point3,
 center: Point3,
 radius: f64,
 mat: MaterialSharedPointer,

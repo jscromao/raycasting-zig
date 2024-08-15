@@ -1,3 +1,4 @@
 .zig-cache
 zig-out
 *.ppm
+backup_*.zig
