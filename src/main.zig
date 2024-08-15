@@ -2,6 +2,8 @@
 //! you are building an executable. If you are making a library, the convention
 //! is to delete this file and start with root.zig instead.
 const std = @import("std");
+const FloatMode = std.builtin.FloatMode;
+
 const Allocator = std.mem.Allocator;
 const vec3 = @import("modules/vec3.zig");
 const ray = @import("modules/ray.zig");
@@ -95,6 +97,7 @@ pub const HittableList = struct {
 
 //fn ray_color(r: *Ray) Color {
 fn ray_color(r: *Ray, world: *HittableList, depth: i32) !Color {
+    comptime @setFloatMode(.optimized);
     // If we've exceeded the ray bounce limit, no more light is gathered
     if (depth <= 0) {
         return Color.init(0.0, 0.0, 0.0);
@@ -128,15 +131,18 @@ fn ray_color(r: *Ray, world: *HittableList, depth: i32) !Color {
 
 pub const OurWriterType = std.io.GenericWriter(File, File.WriteError, File.write);
 fn write_color(out_buf: OurWriterType, pixel_color: Color, samples_per_pixel: i32) !void {
+    comptime @setFloatMode(.optimized);
     var r = pixel_color.x();
     var g = pixel_color.y();
     var b = pixel_color.z();
     //std.debug.print("Pre: {} {} {}\n", .{ r, g, b });
 
     const scale: f64 = 1.0 / @as(f64, @floatFromInt(samples_per_pixel));
+    //std.math
     r = std.math.sqrt(r * scale);
     g = std.math.sqrt(g * scale);
     b = std.math.sqrt(b * scale);
+    //std.math.f
     // r = r * scale;
     // g = g * scale;
     // b = b * scale;
@@ -145,16 +151,23 @@ fn write_color(out_buf: OurWriterType, pixel_color: Color, samples_per_pixel: i3
     // const ir = @as(i32, @intFromFloat(255.999 * pixel_color.x()));
     // const ig = @as(i32, @intFromFloat(255.999 * pixel_color.y()));
     // const ib = @as(i32, @intFromFloat(255.999 * pixel_color.z()));
-
-    const ir: i32 = @intFromFloat(common.clamp_double(r, 0.0, 0.99999) * 255.999);
-    const ig: i32 = @intFromFloat(common.clamp_double(g, 0.0, 0.99999) * 255.999);
-    const ib: i32 = @intFromFloat(common.clamp_double(b, 0.0, 0.99999) * 255.999);
+    //std.debug.print("Out: {} {} {}\n", .{ ir, ig, ib });
+    const fir: f64 = common.clamp_double(r, 0.0, 0.99) * 256.0;
+    const fig: f64 = common.clamp_double(g, 0.0, 0.99) * 256.0;
+    const fib: f64 = common.clamp_double(b, 0.0, 0.99) * 256.0;
+    //std.debug.print("Out: {d} {d} {d}\n", .{ fir, fig, fib });
+    const ir: i64 = std.math.lossyCast(i64, fir);
+    const ig: i64 = std.math.lossyCast(i64, fig);
+    const ib: i64 = std.math.lossyCast(i64, fib);
+    // const ig: i64 = @intFromFloat(common.clamp_double(g, 0.0, 0.999) * 256.0);
+    //const ib: i64 = @intFromFloat(common.clamp_double(b, 0.0, 0.999) * 256.0);
     //std.debug.print("Out: {} {} {}\n", .{ ir, ig, ib });
 
     try out_buf.print("{} {} {}\n", .{ ir, ig, ib });
 }
 
 fn hit_sphere(center: Point3, radius: f64, r: *Ray) f64 {
+    comptime @setFloatMode(.optimized);
     const dray = r.*;
     const orig_to_center = dray.origin().sub_vec(center);
     const squared_otc_len = Vec3.dot(orig_to_center, orig_to_center);
@@ -188,8 +201,9 @@ const SphereList = std.ArrayList(Sphere);
 const LambertianList = std.ArrayList(Lambertian);
 const MetalList = std.ArrayList(Metal);
 const DielectricList = std.ArrayList(Dielectric);
-//const MaterialPointerList = std.ArrayList(MaterialSharedPointer);
 const MaterialList = std.ArrayList(Material);
+const MatPointerList = std.ArrayList(MaterialSharedPointer);
+const PointList = std.ArrayList(Point3);
 
 //fn random_scene(our_allocator: Allocator) !HittableList {
 //fn random_scene(our_allocator: Allocator) !struct { world: HittableList, spheres: SphereList, lambertians: LambertianList, metals: MetalList, dielectrics: DielectricList, mats: MaterialPointerList } {
@@ -197,28 +211,25 @@ const MaterialList = std.ArrayList(Material);
 //}
 
 pub fn main() !void {
+    //@setFloatMode(FloatMode.optimized);
+    comptime @setFloatMode(.optimized);
+
+    //const our_allocator = std.heap.page_allocator;
     //const our_allocator = std.heap.GeneralPurposeAllocator(.{}).allocator();
-    //var our_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    const our_allocator = std.heap.page_allocator;
+    var arena_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    const our_allocator = arena_allocator.allocator();
+    defer arena_allocator.deinit();
 
     // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    //std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
-
-    //const stdout_file = std.io.getStdOut().writer();
-    //var bw = std.io.bufferedWriter(stdout_file);
-    //const stdout = bw.writer();
+    // std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
     const stdout = io.getStdOut().writer();
-
-    //const stderr_file = ;
-    //var stderr_buffer = std.io.bufferedWriter(std.io.getStdErr().writer());
-    //const stderr = stderr_buffer.writer();
     const stderr = io.getStdErr().writer();
 
     // Image
     const aspect_ratio: f64 = 3.0 / 2.0;
-    const image_width: u32 = 400;
+    const image_width: u32 = 480;
     const image_height: u32 = @as(u32, @intFromFloat(@as(f64, @floatFromInt(image_width)) / aspect_ratio));
-    const samples_per_pixel: i32 = 100;
+    const samples_per_pixel: i32 = 500;
     const max_depth: i32 = 50;
 
     // World
@@ -254,99 +265,109 @@ pub fn main() !void {
     //const world = the_stuff.world;
 
     var world = HittableList.init(our_allocator);
+    var points = PointList.init(our_allocator);
     var spheres = SphereList.init(our_allocator);
 
     var lambertians = LambertianList.init(our_allocator);
     var metals = MetalList.init(our_allocator);
     var dielectrics = DielectricList.init(our_allocator);
-
-    //var mats = MaterialPointerList.init(our_allocator);
     var mats = MaterialList.init(our_allocator);
+    var pointers = MatPointerList.init(our_allocator);
 
     try lambertians.append(Lambertian.init(Color.init(0.5, 0.5, 0.5)));
-    //try mats.append(try MaterialSharedPointer.init(@constCast(&(lambertians.getLast())).material(), our_allocator));
     try mats.append(@constCast(&(lambertians.getLast())).material());
-    try spheres.append(Sphere.init(Point3.init(0.0, -1000.0, 0.0), 1000.0, try MaterialSharedPointer.init(mats.getLast(), our_allocator)));
+    try pointers.append(try MaterialSharedPointer.init(mats.getLast(), our_allocator));
+    try points.append(Point3.init(0.0, -1000.0, 0.0));
+    try spheres.append(Sphere.init(points.getLast(), 1000.0, pointers.getLast().strongClone()));
     try world.add(@constCast(&spheres.getLast()).hittable());
-    std.debug.print("Ground Lambertian refs: {} vs {}\n", .{ &(lambertians.items[lambertians.items.len - 1]), &(lambertians.getLast()) });
 
-    var a: i32 = -11;
-    while (a < 11) : (a += 1) {
-        var b: i32 = -11;
-        while (b < 11) : (b += 1) {
-            const choose_mat = try common.random_double();
-            const center = Point3.init(@as(f64, @floatFromInt(a)) + 0.9 * try common.random_double(), 0.2, @as(f64, @floatFromInt(b)) + 0.9 * try common.random_double());
+    var rejected: u32 = 0;
+    var a: i32 = -6;
+    while (a < 6) {
+        var b: i32 = -6;
+        while (b < 6) {
+            const choose_mat = common.freshest_random_double();
+            //const center = Point3.init(@as(f64, @floatFromInt(a)) + 0.9 * try common.random_double(), 0.2, @as(f64, @floatFromInt(b)) + 0.9 * try common.random_double());
+            var center_x: f64 = 0.9 * common.freshest_random_double();
+            center_x += @floatFromInt(a);
+            var center_z: f64 = 0.9 * common.freshest_random_double();
+            center_z += @floatFromInt(b);
+            const center = Point3.init(center_x, 0.2, center_z);
 
             if (center.sub_vec(Point3.init(4.0, 0.2, 0.0)).length() > 0.9) {
+                try points.append(Point3.init(center_x, 0.2, center_z));
+                std.debug.print("Center @ : {d}, {d}, {d}\n", .{ center.x(), center.y(), center.z() });
+
                 if (choose_mat < 0.8) {
                     // Diffuse
-                    const albedo: Color = (try Color.init_random()).mul_vec(try Color.init_random());
+                    const albedo: Color = Color.init_random().mul_vec(Color.init_random());
                     try lambertians.append(Lambertian.init(albedo));
                     try mats.append(@constCast(&lambertians.getLast()).material());
-                    try spheres.append(Sphere.init(center, 0.2, try MaterialSharedPointer.init(mats.getLast(), our_allocator)));
+                    try pointers.append(try MaterialSharedPointer.init(mats.getLast(), our_allocator));
+                    try spheres.append(Sphere.init(points.getLast(), 0.2, pointers.getLast().strongClone()));
                     try world.add(@constCast(&spheres.getLast()).hittable());
-
-                    //const albedo: Color = (try Color.init_random()).mul_vec(try Color.init_random());
-                    //const sphere_mat = try MaterialSharedPointer.init(@constCast(&Lambertian.init(albedo)).material(), our_allocator);
-                    // try spheres.append(Sphere.init(center, 0.2, &(mats.getLast())));
-                    // const the_sphere: *Sphere = &spheres.getLast();
-                    // @memcpy(std.mem.asBytes(the_sphere), std.mem.asBytes(&Sphere.init(center, 0.2, sphere_mat)));
-                    // world.add(Box::new(Sphere::new(center, 0.2, sphere_material)));
-                    // try world.add(the_sphere.hittable());
                 } else if (choose_mat < 0.95) {
                     // Metal
-                    const albedo: Color = try Color.init_random_range(0.5, 1.0);
-                    const fuzz = try common.random_double_range(0.0, 0.5);
+                    const albedo: Color = Color.init_random_range(0.5, 1.0);
+                    const fuzz = common.random_double_range(0.0, 0.5);
                     try metals.append(Metal.init(albedo, fuzz));
                     try mats.append(@constCast(&metals.getLast()).material());
-                    try spheres.append(Sphere.init(center, 0.2, try MaterialSharedPointer.init(mats.getLast(), our_allocator)));
+                    try pointers.append(try MaterialSharedPointer.init(mats.getLast(), our_allocator));
+                    try spheres.append(Sphere.init(points.getLast(), 0.2, pointers.getLast().strongClone()));
                     try world.add(@constCast(&spheres.getLast()).hittable());
-                    //const sphere_material = Rc::new(Metal::new(albedo, fuzz));
-                    // const sphere_mat = try MaterialSharedPointer.init(@constCast(&Metal.init(albedo, fuzz)).material(), our_allocator);
-                    // try mats.append(sphere_mat);
-                    // //world.add(Box::new(Sphere::new(center, 0.2, sphere_material)));
-                    // const the_sphere: *Sphere = try spheres.addOne();
-                    // @memcpy(std.mem.asBytes(the_sphere), std.mem.asBytes(&Sphere.init(center, 0.2, mats.getLast().strongClone())));
-                    // try world.add(the_sphere.hittable());
                 } else {
                     // Glass
-                    // //const sphere_material = Rc::new(Dielectric::new(1.5));
-                    // const sphere_mat = try MaterialSharedPointer.init(@constCast(&Dielectric.init(1.5)).material(), our_allocator);
-                    // //world.add(Box::new(Sphere::new(center, 0.2, sphere_material)));
-                    // const the_sphere: *Sphere = try spheres.addOne();
-                    // @memcpy(std.mem.asBytes(the_sphere), std.mem.asBytes(&Sphere.init(center, 0.2, sphere_mat)));
-                    // try world.add(the_sphere.hittable());
                     try dielectrics.append(Dielectric.init(1.5));
                     try mats.append(@constCast(&dielectrics.getLast()).material());
-                    try spheres.append(Sphere.init(center, 0.2, try MaterialSharedPointer.init(mats.getLast(), our_allocator)));
+                    try pointers.append(try MaterialSharedPointer.init(mats.getLast(), our_allocator));
+                    try spheres.append(Sphere.init(points.getLast(), 0.2, pointers.getLast().strongClone()));
                     try world.add(@constCast(&spheres.getLast()).hittable());
                 }
+            } else {
+                //std.debug.print("Len NOT over 1: {}, {}, {}\n", .{ center.x(), center.y(), center.z() });
+                rejected += 1;
             }
+            b = b + 1;
         }
+        a = a + 1;
     }
 
     try dielectrics.append(Dielectric.init(1.5));
-    //try mats.append(try MaterialSharedPointer.init(@constCast(&(dielectrics.getLast())).material(), our_allocator));
     try mats.append(@constCast(&(dielectrics.getLast())).material());
-    try spheres.append(Sphere.init(Point3.init(0.0, 1.0, 0.0), 1.0, try MaterialSharedPointer.init(mats.getLast(), our_allocator)));
+    try pointers.append(try MaterialSharedPointer.init(mats.getLast(), our_allocator));
+    try points.append(Point3.init(0.0, 1.0, 0.0));
+    try spheres.append(Sphere.init(points.getLast(), 1.0, pointers.getLast().strongClone()));
     try world.add(@constCast(&spheres.getLast()).hittable());
 
     try lambertians.append(Lambertian.init(Color.init(0.4, 0.2, 0.1)));
-    //try mats.append(try MaterialSharedPointer.init(@constCast(&(lambertians.getLast())).material(), our_allocator));
     try mats.append(@constCast(&(lambertians.getLast())).material());
-    try spheres.append(Sphere.init(Point3.init(-4.0, 1.0, 0.0), 1.0, try MaterialSharedPointer.init(mats.getLast(), our_allocator)));
+    try pointers.append(try MaterialSharedPointer.init(mats.getLast(), our_allocator));
+    try points.append(Point3.init(-4.0, 1.0, 0.0));
+    try spheres.append(Sphere.init(points.getLast(), 1.0, pointers.getLast().strongClone()));
     try world.add(@constCast(&spheres.getLast()).hittable());
 
     try metals.append(Metal.init(Color.init(0.7, 0.6, 0.5), 0.0));
-    //try mats.append(try MaterialSharedPointer.init(@constCast(&(metals.getLast())).material(), our_allocator));
     try mats.append(@constCast(&(metals.getLast())).material());
-    try spheres.append(Sphere.init(Point3.init(4.0, 1.0, 0.0), 1.0, try MaterialSharedPointer.init(mats.getLast(), our_allocator)));
+    try pointers.append(try MaterialSharedPointer.init(mats.getLast(), our_allocator));
+    try points.append(Point3.init(4.0, 1.0, 0.0));
+    try spheres.append(Sphere.init(points.getLast(), 1.0, pointers.getLast().strongClone()));
     try world.add(@constCast(&spheres.getLast()).hittable());
+
+    std.debug.print("Rejected Spheres: {d}\n", .{rejected});
+    std.debug.print("Num Spheres: {d}\n", .{spheres.items.len});
+    std.debug.print("Num World Hittables: {d}\n", .{world.objects.items.len});
+    // std.debug.print("5th last:\n{}\n", .{spheres.items[spheres.items.len - 1 - 5]});
+    // std.debug.print("4th last:\n{}\n", .{spheres.items[spheres.items.len - 1 - 4]});
+
+    for (world.objects.items) |*hit| {
+        const our_sphere: *Sphere = @ptrCast(@alignCast(hit.*.ptr));
+        std.debug.print("OurSphere: {d}, {d}, {d}\n", .{ our_sphere.center.x(), our_sphere.center.y(), our_sphere.center.z() });
+    }
 
     // Camera
     //var cam = Camera.init(aspect_ratio, 90.0);
     const vfov_degrees: f64 = 100.0;
-    const zoom_multiplier: f64 = 5.0;
+    const zoom_multiplier: f64 = 2.5;
 
     const look_from = Point3.init(13.0, 2.0, 3.0); //Point3.init(-2.0, 2.0, 1.0);
     const look_at = Point3.init(0.0, 0.0, 0.0); //Point3.init(0.0, 0.0, -1.0);
@@ -376,8 +397,8 @@ pub fn main() !void {
 
             var pixel_color = Color.init(0.0, 0.0, 0.0);
             for (0..samples_per_pixel) |_| {
-                const u: f64 = (@as(f64, @floatFromInt(i)) + try common.random_double()) / @as(f64, @floatFromInt(image_width - 1));
-                const v: f64 = (@as(f64, @floatFromInt(j)) + try common.random_double()) / @as(f64, @floatFromInt(image_height - 1));
+                const u: f64 = (@as(f64, @floatFromInt(i)) + common.freshest_random_double()) / @as(f64, @floatFromInt(image_width - 1));
+                const v: f64 = (@as(f64, @floatFromInt(j)) + common.freshest_random_double()) / @as(f64, @floatFromInt(image_height - 1));
                 const r = cam.get_ray(u, v);
 
                 //const pixel_color = ray_color(@constCast(&r));

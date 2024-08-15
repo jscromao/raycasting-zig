@@ -2,6 +2,10 @@ const math = @import("std").math;
 
 const common = @import("common.zig");
 
+comptime {
+    @setFloatMode(.optimized);
+}
+
 pub const Vec3 = struct {
     e: [3]f64,
 
@@ -9,25 +13,25 @@ pub const Vec3 = struct {
         return .{ .e = .{ e0, e1, e2 } };
     }
 
-    pub fn init_random() !Vec3 {
+    pub fn init_random() Vec3 {
         return Vec3.init(
-            try common.random_double(),
-            try common.random_double(),
-            try common.random_double(),
+            common.freshest_random_double(),
+            common.freshest_random_double(),
+            common.freshest_random_double(),
         );
     }
 
-    pub fn init_random_range(min: f64, max: f64) !Vec3 {
+    pub fn init_random_range(min: f64, max: f64) Vec3 {
         return Vec3.init(
-            try common.random_double_range(min, max),
-            try common.random_double_range(min, max),
-            try common.random_double_range(min, max),
+            common.random_double_range(min, max),
+            common.random_double_range(min, max),
+            common.random_double_range(min, max),
         );
     }
 
-    pub fn init_random_in_unit_sphere() !Vec3 {
+    pub fn init_random_in_unit_sphere() Vec3 {
         while (true) {
-            const p = try Vec3.init_random_range(-1.0, 1.0);
+            const p = Vec3.init_random_range(-1.0, 1.0);
             if (p.length_squared() >= 1.0) {
                 continue;
             }
@@ -35,13 +39,13 @@ pub const Vec3 = struct {
         }
     }
 
-    pub fn random_unit_vector() !Vec3 {
-        return Vec3.unit_vector(try Vec3.init_random_in_unit_sphere());
+    pub fn random_unit_vector() Vec3 {
+        return Vec3.unit_vector(Vec3.init_random_in_unit_sphere());
     }
 
     pub fn random_in_unit_disk() Vec3 {
         while (true) {
-            const p = Vec3.init(common.random_double_range(-1.0, 1.0) catch 0.0, common.random_double_range(-1.0, 1.0) catch 0.0, 0.0);
+            const p = Vec3.init(common.random_double_range(-1.0, 1.0), common.random_double_range(-1.0, 1.0), 0.0);
             if (p.length_squared() >= 1.0) {
                 continue;
             }

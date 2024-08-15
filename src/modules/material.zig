@@ -73,7 +73,7 @@ pub const Lambertian = struct {
         _ = r_in; // discard r_in as we don't require its use
         const self: *Lambertian = @ptrCast(@alignCast(ctx));
 
-        var scatter_direction = rec.normal.add_vec(Vec3.random_unit_vector() catch Vec3.init(0.0, 0.0, 0.0));
+        var scatter_direction = rec.normal.add_vec(Vec3.random_unit_vector());
 
         // Catch degenerate scatter direction
         if (scatter_direction.near_zero()) {
@@ -108,7 +108,7 @@ pub const Metal = struct {
 
         attenuation.* = self.albedo;
         //scattered.* = Ray.init(rec.p, reflected);
-        const fuzzed_rando = (Vec3.init_random_in_unit_sphere() catch Vec3.init(0.0, 0.0, 0.0)).mul_scalar(self.fuzz);
+        const fuzzed_rando = Vec3.init_random_in_unit_sphere().mul_scalar(self.fuzz);
         scattered.* = Ray.init(rec.p, reflected.add_vec(fuzzed_rando));
 
         return Vec3.dot(scattered.direction(), rec.normal) > 0.0;
