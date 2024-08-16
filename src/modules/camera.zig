@@ -1,3 +1,7 @@
+comptime {
+    @setFloatMode(.optimized);
+}
+
 const common = @import("common.zig");
 const math = @import("std").math;
 const vec3 = @import("vec3.zig");

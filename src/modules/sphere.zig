@@ -1,3 +1,7 @@
+comptime {
+    @setFloatMode(.optimized);
+}
+
 const rcsp = @import("../packages/rcsp.zig");
 
 const material = @import("material.zig");

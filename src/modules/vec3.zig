@@ -1,10 +1,10 @@
-const math = @import("std").math;
-
-const common = @import("common.zig");
-
 comptime {
     @setFloatMode(.optimized);
 }
+
+const math = @import("std").math;
+
+const common = @import("common.zig");
 
 pub const Vec3 = struct {
     e: [3]f64,
@@ -15,9 +15,9 @@ pub const Vec3 = struct {
 
     pub fn init_random() Vec3 {
         return Vec3.init(
-            common.freshest_random_double(),
-            common.freshest_random_double(),
-            common.freshest_random_double(),
+            common.random_double(),
+            common.random_double(),
+            common.random_double(),
         );
     }
 

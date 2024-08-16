@@ -1,3 +1,7 @@
+comptime {
+    @setFloatMode(.optimized);
+}
+
 const rcsp = @import("../packages/rcsp.zig");
 const math = @import("std").math;
 const common = @import("common.zig");
@@ -136,7 +140,7 @@ pub const Dielectric = struct {
         const sin_theta: f64 = @sqrt(1.0 - (cos_theta * cos_theta));
 
         const cannot_refract: bool = (refraction_ratio * sin_theta) > 1.0;
-        const should_reflect: bool = cannot_refract or material_reflectance(cos_theta, refraction_ratio) > common.freshest_random_double();
+        const should_reflect: bool = cannot_refract or material_reflectance(cos_theta, refraction_ratio) > common.random_double();
         const direction = if (should_reflect) Vec3.reflect(unit_direction, rec.normal) else Vec3.refract(unit_direction, rec.normal, refraction_ratio);
 
         attenuation.* = Color.init(1.0, 1.0, 1.0);

@@ -1,3 +1,7 @@
+comptime {
+    @setFloatMode(.optimized);
+}
+
 const Ray = @import("ray.zig").Ray;
 const HitRecord = @import("HitRecord.zig");
 

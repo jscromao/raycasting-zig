@@ -1,4 +1,8 @@
 const std = @import("std");
+comptime {
+    @setFloatMode(.optimized);
+}
+
 const Allocator = std.mem.Allocator;
 const Hittable = @import("./hittable.zig");
 const Ray = @import("./ray.zig").Ray;

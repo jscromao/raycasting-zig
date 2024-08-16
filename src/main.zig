@@ -1,5 +1,8 @@
 const std = @import("std");
 const FloatMode = std.builtin.FloatMode;
+comptime {
+    @setFloatMode(FloatMode.optimized);
+}
 
 const Allocator = std.mem.Allocator;
 const vec3 = @import("modules/vec3.zig");
@@ -11,8 +14,6 @@ const io = std.io;
 const fs = std.fs;
 const File = fs.File;
 
-// const Vec2 = packed struct { x: f32, y: f32 };
-// const VertexDataF1 = packed struct { position: Vec3, normal: Vec3, tex: Vec2 };
 const Vec3 = vec3.Vec3;
 const Point3 = vec3.Point3;
 const Color = vec3.Color;
@@ -96,21 +97,15 @@ fn hit_sphere(center: Point3, radius: f64, r: *Ray) f64 {
     return if (discriminant < 0.0) -1.0 else (-b - @sqrt(discriminant)) / (2.0 * a);
 }
 
-fn generate_scene(our_allocator: std.mem.Allocator) ![]Sphere {
-    comptime @setFloatMode(.optimized);
-    var spheres = try our_allocator.alloc(Sphere, 400);
-
-    for (0..spheres.len) |i| {
-        const center_x: f64 = 5.0 * common.freshest_random_double();
-        const center_y: f64 = 5.0 * common.freshest_random_double();
-        const center_z: f64 = 5.0 * common.freshest_random_double();
-        const center = Point3{ .x = center_x, .y = center_y, .z = center_z };
-        //spheres[i] = try sphere_create(center, 0.2, @constCast(&our_allocator));
-        spheres[i] = Sphere.init(center, 0.2);
-    }
-
-    return spheres;
-}
+// fn generate_scene(our_allocator: std.mem.Allocator) ![]Sphere {
+//     comptime @setFloatMode(.optimized);
+//     var spheres = try our_allocator.alloc(Sphere, 400);
+//     for (0..spheres.len) |i| {
+//         const center = Point3{ .x = common.random_double(), .y = common.random_double(), .z = common.random_double() };
+//         spheres[i] = Sphere.init(center.mul_scalar(5.0), 0.2);
+//     }
+//     return spheres;
+// }
 
 fn gen_material(comptime T: type, allocator: std.mem.Allocator, mat: T) !Material {
     const og_mat: *T = try allocator.create(T);
@@ -118,31 +113,38 @@ fn gen_material(comptime T: type, allocator: std.mem.Allocator, mat: T) !Materia
     return og_mat.material();
 }
 
+const max_count = 500;
+var all_spheres: [max_count]Sphere = undefined;
+var all_mats: [max_count]MaterialSharedPointer = undefined;
+var we_at: usize = 0;
+
 fn gen_sphere_hittable(allocator: std.mem.Allocator, center: Point3, radius: f64, mat: Material) !Hittable {
-    const mat_shrptr = try allocator.create(MaterialSharedPointer);
-    mat_shrptr.* = try MaterialSharedPointer.init(mat, allocator);
-    var sphere = try allocator.create(Sphere);
-    sphere.* = Sphere.init(center, radius, mat_shrptr.*);
-    return sphere.hittable();
+    //const mat_shrptr = try allocator.create(MaterialSharedPointer);
+    //mat_shrptr.* = try MaterialSharedPointer.init(mat, allocator);
+    //var sphere = try allocator.create(Sphere);
+    //sphere.* = Sphere.init(center, radius, mat_shrptr.*);
+    //return sphere.hittable();
+    const were_at = we_at;
+    we_at += 1;
+    all_mats[were_at] = try MaterialSharedPointer.init(mat, allocator);
+    all_spheres[were_at] = Sphere.init(center, radius, all_mats[were_at]);
+    return all_spheres[were_at].hittable();
 }
 
 fn gen_world(our_allocator: std.mem.Allocator) !HittableList {
     comptime @setFloatMode(.optimized);
-    var world = try HittableList.initCapacity(our_allocator, 400);
+    var world = try HittableList.initCapacity(our_allocator, max_count);
 
     try world.add(try gen_sphere_hittable(our_allocator, Point3.init(0.0, -1000.0, 0.0), 1000.0, try gen_material(Lambertian, our_allocator, Lambertian.init(Color.init(0.5, 0.5, 0.5)))));
 
-    var a: i32 = -6;
-    while (a < 6) : (a += 1) {
-        var b: i32 = -6;
+    var a: i32 = -11;
+    while (a < 11) : (a += 1) {
+        var b: i32 = -11;
 
-        while (b < 6) : (b += 1) {
-            const choose_mat = common.freshest_random_double();
-            //const center = Point3.init(@as(f64, @floatFromInt(a)) + 0.9 * try common.random_double(), 0.2, @as(f64, @floatFromInt(b)) + 0.9 * try common.random_double());
-            var center_x: f64 = 0.9 * common.freshest_random_double();
-            center_x += @floatFromInt(a);
-            var center_z: f64 = 0.9 * common.freshest_random_double();
-            center_z += @floatFromInt(b);
+        while (b < 11) : (b += 1) {
+            const choose_mat = common.random_double();
+            const center_x: f64 = @as(f64, @floatFromInt(a)) + 0.9 * common.random_double();
+            const center_z: f64 = @as(f64, @floatFromInt(b)) + 0.9 * common.random_double();
             const center = Point3.init(center_x, 0.2, center_z);
 
             if (center.sub_vec(Point3.init(4.0, 0.2, 0.0)).length() > 0.9) {
@@ -160,6 +162,7 @@ fn gen_world(our_allocator: std.mem.Allocator) !HittableList {
                     try world.add(try gen_sphere_hittable(our_allocator, Point3.init(center_x, 0.2, center_z), 0.2, try gen_material(Dielectric, our_allocator, Dielectric.init(1.5))));
                 }
             }
+            //we_at += 1;
         }
     }
 
@@ -177,6 +180,8 @@ pub fn main() !void {
     defer arena_allocator.deinit();
     const our_allocator = arena_allocator.allocator();
 
+    const begin = try std.time.Instant.now();
+
     const stdout = io.getStdOut().writer();
     const stderr = io.getStdErr().writer();
 
@@ -185,7 +190,7 @@ pub fn main() !void {
 
     // Image
     const aspect_ratio: f64 = 3.0 / 2.0;
-    const image_width: u32 = 1200;
+    const image_width: u32 = 480;
     const image_height: u32 = @as(u32, @intFromFloat(@as(f64, @floatFromInt(image_width)) / aspect_ratio));
     const samples_per_pixel: i32 = 500;
     const max_depth: i32 = 50;
@@ -201,15 +206,11 @@ pub fn main() !void {
     var cam = Camera.init(look_from, look_at, vup, vfov_degrees, zoom_multiplier, aspect_ratio, aperture, dist_to_focus);
 
     // Debug
-    //std.debug.print("Rejected Spheres: {d}\n", .{rejected});
-    //std.debug.print("Num Spheres: {d}\n", .{spheres.items.len});
     std.debug.print("Num World Hittables: {d}\n", .{world.objects.items.len});
-    // std.debug.print("5th last:\n{}\n", .{spheres.items[spheres.items.len - 1 - 5]});
-    // std.debug.print("4th last:\n{}\n", .{spheres.items[spheres.items.len - 1 - 4]});
-    for (world.objects.items) |*hit| {
-        const our_sphere: *Sphere = @ptrCast(@alignCast(hit.*.ptr));
-        std.debug.print("OurSphere: {d}, {d}, {d}, {d}\n", .{ our_sphere.center.x(), our_sphere.center.y(), our_sphere.center.z(), our_sphere.radius });
-    }
+    // for (world.objects.items) |*hit| {
+    //     const our_sphere: *Sphere = @ptrCast(@alignCast(hit.*.ptr));
+    //     std.debug.print("OurSphere: {d}, {d}, {d}, {d}\n", .{ our_sphere.center.x(), our_sphere.center.y(), our_sphere.center.z(), our_sphere.radius });
+    // }
 
     // Render
     try stdout.print("P3\n{} {}\n255\n", .{ image_width, image_height });
@@ -221,8 +222,8 @@ pub fn main() !void {
             var pixel_color = Color.init(0.0, 0.0, 0.0);
 
             for (0..samples_per_pixel) |_| {
-                const u: f64 = (@as(f64, @floatFromInt(i)) + common.freshest_random_double()) / @as(f64, @floatFromInt(image_width - 1));
-                const v: f64 = (@as(f64, @floatFromInt(j)) + common.freshest_random_double()) / @as(f64, @floatFromInt(image_height - 1));
+                const u: f64 = (@as(f64, @floatFromInt(i)) + common.random_double()) / @as(f64, @floatFromInt(image_width - 1));
+                const v: f64 = (@as(f64, @floatFromInt(j)) + common.random_double()) / @as(f64, @floatFromInt(image_height - 1));
                 const r = cam.get_ray(u, v);
                 pixel_color = pixel_color.add_vec(try ray_color(@constCast(&r), @constCast(&world), max_depth));
             }
@@ -230,31 +231,10 @@ pub fn main() !void {
             try write_color(stdout, pixel_color, samples_per_pixel);
         }
     }
+
+    const time_in_secs: f128 = @as(f128, @floatFromInt((try std.time.Instant.now()).since(begin))) / 1000000000.0;
     try stderr.print("\rProgress - Done! \n", .{});
-}
-
-test "scene generation holds" {
-    comptime @setFloatMode(.optimized);
-    var arena_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena_allocator.deinit();
-    const our_allocator = arena_allocator.allocator();
-
-    // var spheres = try our_allocator.alloc(Sphere, 400);
-    // for (0..spheres.len) |i| {
-    //     const center_x: f64 = 5.0 * common.freshest_random_double();
-    //     const center_y: f64 = 5.0 * common.freshest_random_double();
-    //     const center_z: f64 = 5.0 * common.freshest_random_double();
-    //     const center = Point3{ .x = center_x, .y = center_y, .z = center_z };
-    //     //spheres[i] = try sphere_create(center, 0.2, @constCast(&our_allocator));
-    //     spheres[i] = Sphere.init(center, 0.2);
-    // }
-
-    const spheres = try generate_scene(our_allocator);
-
-    // Debug
-    for (spheres, 0..) |sphere, i| {
-        std.debug.print("Sphere {} center: ({d}, {d}, {d})\n", .{ i, sphere.center.x, sphere.center.y, sphere.center.z });
-    }
+    try stderr.print("Finished in: {d}", .{time_in_secs});
 }
 
 test "simple test" {

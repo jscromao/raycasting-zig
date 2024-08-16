@@ -1,3 +1,7 @@
+comptime {
+    @setFloatMode(.optimized);
+}
+
 const rcsp = @import("../packages/rcsp.zig");
 
 const Ray = @import("ray.zig").Ray;
